@@ -1,0 +1,799 @@
+/* Satisfactory Chains — styles du graphe (identité visuelle maquette v4) */
+
+.sfy-graph {
+  /* Palette branchée sur le thème Obsidian (clair ET sombre) ; les fallbacks hex
+     conservent l'identité sombre d'origine hors d'Obsidian (harness de dev). */
+  --sfy-bg: var(--background-primary, #1e1e1e);
+  --sfy-panel: var(--background-secondary, #262626);
+  --sfy-card: var(--background-primary-alt, #2d2d2d);
+  --sfy-text: var(--text-normal, #dcddde);
+  --sfy-muted: var(--text-muted, #8a8d91);
+  --sfy-ok: var(--color-green, #22c55e);
+  --sfy-warn: var(--color-orange, #f59e0b);
+  --sfy-bad: var(--color-red, #ef4444);
+  --sfy-raw: var(--text-faint, #6b7280);
+  --sfy-accent: var(--interactive-accent, #7c3aed);
+  --sfy-border: var(--background-modifier-border, #3a3a3a);
+
+  position: relative;
+  width: 100%;
+  height: 560px;
+  border: 1px solid var(--sfy-border);
+  border-radius: 10px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 1px 1px, var(--sfy-border) 1px, transparent 0) 0 0 / 26px 26px,
+    var(--sfy-panel);
+  color: var(--sfy-text);
+  font-family: var(--font-interface, 'Segoe UI', Roboto, sans-serif);
+  user-select: none;
+}
+
+/* React Flow surface transparente pour laisser passer notre fond */
+.sfy-graph .react-flow__renderer,
+.sfy-graph .react-flow__pane {
+  background: transparent;
+}
+
+/* ---- Nœud recette ---- */
+.sfy-node {
+  background: var(--sfy-card);
+  border: 1px solid var(--sfy-border);
+  border-left: 5px solid var(--sfy-raw);
+  border-radius: 8px;
+  padding: 8px 10px;
+  box-shadow: 0 2px 8px #0006;
+  min-width: 180px;
+  position: relative;
+}
+.sfy-node.ok   { border-left-color: var(--sfy-ok); }
+.sfy-node.warn { border-left-color: var(--sfy-warn); }
+.sfy-node.bad  { border-left-color: var(--sfy-bad); }
+
+.sfy-node .sfy-title {
+  font-weight: 600;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+/* Icône image de l'item (vignette du jeu) dans le titre du nœud. */
+.sfy-node .sfy-icon {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  flex: 0 0 auto;
+}
+.sfy-node .sfy-line {
+  font-size: 11.5px;
+  color: var(--sfy-muted);
+  margin-top: 3px;
+}
+.sfy-node .sfy-issue { color: var(--text-error, #fca5a5); }
+
+/* ---- Édition inline (double-clic sur une valeur) ---- */
+.sfy-inline {
+  cursor: text;
+  border-bottom: 1px dotted var(--sfy-border);
+  padding: 0 1px;
+}
+.sfy-inline:hover {
+  background: var(--background-modifier-hover, #ffffff14);
+  border-bottom-color: var(--sfy-accent, #7c3aed);
+}
+.sfy-inline-input {
+  width: 64px;
+  background: var(--sfy-card);
+  color: var(--sfy-text, #dcddde);
+  border: 1px solid var(--sfy-accent, #7c3aed);
+  border-radius: 4px;
+  padding: 0 3px;
+  font-size: 11.5px;
+  font-family: inherit;
+}
+
+/* ---- Bouton de suppression d'un nœud (au survol) ---- */
+.sfy-del {
+  position: absolute;
+  top: -9px;
+  left: -9px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--sfy-bad);
+  border-radius: 50%;
+  background: rgba(var(--color-red-rgb, 239, 68, 68), 0.12);
+  color: var(--text-error, #fca5a5);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.12s;
+  z-index: 5;
+}
+.sfy-node:hover .sfy-del {
+  opacity: 1;
+}
+.sfy-del:hover {
+  background: var(--sfy-bad);
+  color: var(--text-on-accent, #fff);
+}
+
+.sfy-badge {
+  position: absolute;
+  top: -10px;
+  right: 8px;
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+.sfy-badge.ok   { background: rgba(var(--color-green-rgb, 34, 197, 94), 0.15); color: var(--sfy-ok); }
+.sfy-badge.warn { background: rgba(var(--color-orange-rgb, 245, 158, 11), 0.15); color: var(--sfy-warn); }
+.sfy-badge.bad  { background: rgba(var(--color-red-rgb, 239, 68, 68), 0.15); color: var(--sfy-bad); }
+
+/* ---- Nœud ressource brute ---- */
+.sfy-node.sfy-raw {
+  border-left-color: var(--sfy-raw);
+  padding: 10px 12px;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+/* ---- Nœud objectif ---- */
+.sfy-node.sfy-goal {
+  border: 1px dashed var(--sfy-accent);
+  border-left: 5px solid var(--sfy-accent);
+  background: rgba(var(--accent-rgb, 124, 58, 237), 0.12);
+}
+
+/* ---- Calque (groupe) ---- */
+.sfy-graph .react-flow__node-calque {
+  /* boîte purement décorative : pas de style RF par défaut, clics traversants */
+  padding: 0;
+  border: none;
+  background: transparent;
+  pointer-events: none;
+}
+.sfy-group {
+  width: 100%;
+  height: 100%;
+  border: 2px dashed;
+  border-radius: 14px;
+  box-sizing: border-box;
+}
+.sfy-group-head {
+  position: absolute;
+  top: -13px;
+  left: 14px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: 10px;
+  background: var(--sfy-bg);
+  border: 1px solid;
+  white-space: nowrap;
+}
+
+/* ---- Handles React Flow discrets ---- */
+.sfy-graph .react-flow__handle {
+  width: 7px;
+  height: 7px;
+  background: var(--sfy-border);
+  border: 1px solid var(--sfy-muted);
+}
+
+/* ---- Label d'arête ---- */
+.sfy-edge-label {
+  font-size: 11px;
+  background: var(--sfy-panel);
+  border: 1px solid var(--sfy-border);
+  border-radius: 6px;
+  padding: 2px 7px;
+  white-space: nowrap;
+  color: var(--sfy-text);
+}
+.sfy-edge-label small {
+  display: block;
+  color: var(--sfy-muted);
+  font-size: 10px;
+}
+.sfy-edge-del {
+  position: absolute;
+  top: -9px;
+  right: -9px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid var(--sfy-bad);
+  border-radius: 50%;
+  background: rgba(var(--color-red-rgb, 239, 68, 68), 0.12);
+  color: var(--text-error, #fca5a5);
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.sfy-edge-label:hover .sfy-edge-del {
+  opacity: 1;
+}
+.sfy-edge-del:hover {
+  background: var(--sfy-bad);
+  color: var(--text-on-accent, #fff);
+}
+
+/* ---- Bout d'arête (sens du flux) ---- */
+.sfy-edge-cap {
+  pointer-events: none;
+  line-height: 1;
+}
+.sfy-cap-arrow {
+  display: inline-block;
+  font-size: 15px;
+  text-shadow: 0 0 2px var(--sfy-panel), 0 0 2px var(--sfy-panel);
+}
+.sfy-cap-loop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid;
+  background: var(--sfy-card);
+  font-size: 12px;
+}
+
+/* ---- Barre d'outils d'édition ---- */
+.sfy-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: calc(100% - 24px);
+  background: var(--sfy-panel);
+  border: 1px solid var(--sfy-border);
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+.sfy-select {
+  background: var(--sfy-card, #2d2d2d);
+  color: var(--sfy-text, #dcddde);
+  border: 1px solid var(--sfy-border);
+  border-radius: 6px;
+  padding: 3px 6px;
+  font-size: 12px;
+  max-width: 220px;
+}
+.sfy-btn {
+  background: var(--sfy-accent, #7c3aed);
+  color: var(--text-on-accent, #fff);
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.sfy-btn:hover { filter: brightness(1.1); }
+.sfy-btn2 {
+  background: var(--sfy-card, #2d2d2d);
+  color: var(--sfy-text, #dcddde);
+  border: 1px solid var(--sfy-border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.sfy-btn2:hover:not(:disabled) { background: var(--background-modifier-hover, #3a3a3a); }
+.sfy-btn2:disabled { opacity: 0.4; cursor: default; }
+.sfy-hint {
+  color: var(--sfy-muted, #8a8d91);
+  font-size: 11px;
+}
+
+/* ---- Calque : bouton replier/déplier + nom éditable ---- */
+.sfy-group-head { display: flex; align-items: center; gap: 4px; pointer-events: auto; }
+.sfy-group-toggle {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0 2px;
+  pointer-events: auto;
+  line-height: 1;
+}
+.sfy-layername { display: inline-flex; align-items: center; gap: 3px; }
+.sfy-rename-btn {
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 10px;
+  padding: 0 2px;
+  opacity: 0.6;
+  pointer-events: auto;
+  line-height: 1;
+}
+.sfy-rename-btn:hover { opacity: 1; }
+
+/* ---- Nœud module (calque replié) ---- */
+.sfy-module {
+  background: var(--sfy-card, #2d2d2d);
+  border: 2px dashed;
+  border-radius: 12px;
+  padding: 8px 10px;
+  min-width: 190px;
+  box-shadow: 0 2px 8px #0006;
+}
+.sfy-module-head {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 700;
+  font-size: 13px;
+}
+.sfy-module-count {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--sfy-muted, #8a8d91);
+}
+.sfy-module-io {
+  display: flex;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+/* ---- Panneau d'édition d'un nœud ---- */
+/* Les panneaux de droite (éditeur / optimiseur) ne doivent JAMAIS déborder du
+   graphe (hauteur fixe + overflow:hidden) : plafond + défilement interne, sinon
+   les boutons du bas (Générer / Appliquer) deviennent inatteignables. */
+.sfy-graph .react-flow__panel.top.right {
+  max-height: calc(100% - 30px);
+  display: flex;
+}
+.sfy-graph .react-flow__panel.top.right .sfy-editor {
+  max-height: 100%;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+.sfy-editor {
+  width: 230px;
+  background: var(--sfy-panel);
+  border: 1px solid var(--sfy-border);
+  border-radius: 8px;
+  padding: 10px;
+  color: var(--sfy-text, #dcddde);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sfy-editor-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+}
+.sfy-editor-close {
+  border: none;
+  background: transparent;
+  color: var(--sfy-muted, #8a8d91);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0 2px;
+}
+.sfy-editor-close:hover { color: var(--sfy-bad, #ef4444); }
+.sfy-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--sfy-muted, #8a8d91);
+}
+.sfy-field select,
+.sfy-field input {
+  background: var(--sfy-card, #2d2d2d);
+  color: var(--sfy-text, #dcddde);
+  border: 1px solid var(--sfy-border);
+  border-radius: 6px;
+  padding: 4px 6px;
+  font-size: 12px;
+}
+.sfy-editor-io {
+  display: flex;
+  gap: 10px;
+  border-top: 1px solid var(--sfy-border);
+  padding-top: 8px;
+}
+.sfy-io-col { flex: 1; min-width: 0; }
+.sfy-io-title {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--sfy-muted, #8a8d91);
+  margin-bottom: 3px;
+}
+.sfy-io-line {
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- Panneau optimiseur ---- */
+.sfy-optimizer { width: 260px; }
+.sfy-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--sfy-text, #dcddde);
+  cursor: pointer;
+}
+.sfy-check input[type="checkbox"] { margin: 0; }
+.sfy-optimizer .sfy-field input { width: 100%; box-sizing: border-box; }
+.sfy-opt-result {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid var(--sfy-border);
+  padding-top: 8px;
+  /* pas de max-height ici : c'est le panneau entier qui défile (plafonné au graphe) */
+}
+
+/* ---- Édition des débits personnalisés ---- */
+.sfy-editor-custom {
+  border-top: 1px solid var(--sfy-border);
+  padding-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sfy-custom-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--sfy-muted, #8a8d91);
+}
+.sfy-ports-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--sfy-muted, #8a8d91);
+  margin: 2px 0;
+}
+.sfy-port-row {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 3px;
+}
+.sfy-port-item {
+  flex: 1;
+  min-width: 0;
+}
+.sfy-port-debit {
+  width: 56px;
+}
+.sfy-port-item,
+.sfy-port-debit {
+  background: var(--sfy-card, #2d2d2d);
+  color: var(--sfy-text, #dcddde);
+  border: 1px solid var(--sfy-border);
+  border-radius: 5px;
+  padding: 3px 5px;
+  font-size: 11px;
+}
+.sfy-mini {
+  width: 20px;
+  height: 22px;
+  border: 1px solid var(--sfy-border);
+  border-radius: 5px;
+  background: var(--sfy-card, #2d2d2d);
+  color: var(--sfy-text, #dcddde);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  /* padding 0 + flex : sans ça le padding par défaut des boutons (Obsidian)
+     réduit la zone de contenu à 0 et l'icône lucide est écrasée (width 0). */
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.sfy-mini:hover { background: var(--background-modifier-hover, #3a3a3a); }
+.sfy-apply {
+  margin-top: 2px;
+  background: var(--sfy-accent, #7c3aed);
+  color: var(--text-on-accent, #fff);
+  border: none;
+  border-radius: 6px;
+  padding: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.sfy-apply:hover { filter: brightness(1.1); }
+
+/* ---- Icônes lucide : alignement dans les boutons et lignes ---- */
+.sfy-btn, .sfy-btn2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  line-height: 1.2;
+}
+.sfy-btn svg, .sfy-btn2 svg { flex: 0 0 auto; }
+.sfy-del svg, .sfy-edge-del svg, .sfy-mini svg, .sfy-editor-close svg,
+.sfy-group-toggle svg, .sfy-rename-btn svg { display: block; }
+.sfy-line-ico {
+  display: inline-block;
+  vertical-align: -2px;
+  margin-right: 1px;
+}
+.sfy-alt-star {
+  display: inline-block;
+  vertical-align: -1px;
+  margin-left: 3px;
+  color: var(--sfy-warn, #f59e0b);
+  fill: currentColor;
+}
+.sfy-editor-head b { display: inline-flex; align-items: center; gap: 5px; }
+.sfy-cap-arrow svg { display: block; filter: drop-shadow(0 0 2px var(--sfy-panel)); }
+.sfy-cap-loop svg { display: block; }
+
+/* ---- Badge de statut : pastille colorée (remplace l'emoji) ---- */
+.sfy-badge { display: inline-flex; align-items: center; gap: 4px; }
+.sfy-badge::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: 0 0 auto;
+}
+
+/* ---- Picker de recettes (recherche + groupes) ---- */
+/* Le picker du bouton « + Nœud » s'ancre SOUS la barre d'outils, aligné à gauche. */
+.sfy-toolbar { position: relative; }
+.sfy-picker-anchor { width: 0; height: 0; }
+.sfy-picker-anchor .sfy-picker {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+}
+.sfy-float {
+  position: absolute;
+  z-index: 30;
+}
+.sfy-picker {
+  width: 280px;
+  background: var(--sfy-panel);
+  border: 1px solid var(--sfy-border);
+  border-radius: 8px;
+  box-shadow: 0 6px 24px #000a;
+  z-index: 30;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.sfy-picker-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 9px;
+  border-bottom: 1px solid var(--sfy-border);
+  color: var(--sfy-muted, #8a8d91);
+}
+.sfy-picker-search input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--sfy-text, #dcddde);
+  font-size: 12.5px;
+}
+.sfy-picker-close {
+  border: none;
+  background: transparent;
+  color: var(--sfy-muted, #8a8d91);
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+}
+.sfy-picker-close:hover { color: var(--sfy-bad, #ef4444); }
+.sfy-picker-list {
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 4px;
+}
+.sfy-picker-sec {
+  position: sticky;
+  top: 0;
+  padding: 4px 8px 3px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--sfy-muted, #8a8d91);
+  background: var(--sfy-panel);
+  z-index: 1;
+}
+.sfy-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--sfy-text, #dcddde);
+  font-size: 12px;
+  text-align: left;
+  padding: 4px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.sfy-picker-row.active { background: var(--sfy-accent, #7c3aed); color: var(--text-on-accent, #fff); }
+.sfy-picker-row.active .sfy-picker-machine { color: var(--text-on-accent, #fff); opacity: 0.75; }
+.sfy-picker-row .sfy-icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  flex: 0 0 auto;
+}
+.sfy-picker-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.sfy-picker-star { color: var(--sfy-warn, #f59e0b); fill: currentColor; flex: 0 0 auto; }
+.sfy-picker-noteico { color: var(--sfy-muted, #8a8d91); flex: 0 0 auto; }
+.sfy-picker-row.active .sfy-picker-noteico { color: var(--text-on-accent, #fff); }
+.sfy-picker-machine {
+  flex: 0 0 auto;
+  font-size: 10px;
+  color: var(--sfy-muted, #8a8d91);
+}
+.sfy-picker-empty {
+  padding: 12px;
+  font-size: 12px;
+  color: var(--sfy-muted, #8a8d91);
+  text-align: center;
+}
+/* Picker embarqué dans le panneau d'édition (pleine largeur). */
+.sfy-editor .sfy-picker { width: 100%; box-sizing: border-box; }
+.sfy-editor .sfy-picker-list { max-height: 220px; }
+.sfy-recipe-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  background: var(--sfy-card, #2d2d2d);
+  color: var(--sfy-text, #dcddde);
+  border: 1px solid var(--sfy-border);
+  border-radius: 6px;
+  padding: 4px 6px;
+  font-size: 12px;
+  cursor: pointer;
+  width: 100%;
+}
+.sfy-recipe-btn:hover { background: var(--background-modifier-hover, #3a3a3a); }
+.sfy-recipe-btn-label {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sfy-import-ref {
+  background: var(--sfy-card, #2d2d2d);
+  border: 1px solid var(--sfy-border);
+  border-radius: 6px;
+  padding: 4px 6px;
+  font-size: 12px;
+  color: var(--sfy-text, #dcddde);
+}
+
+/* ---- Menu contextuel (clic droit) ---- */
+.sfy-ctx {
+  position: absolute;
+  z-index: 40;
+  min-width: 190px;
+  background: var(--sfy-panel);
+  border: 1px solid var(--sfy-border);
+  border-radius: 8px;
+  box-shadow: 0 6px 24px #000a;
+  padding: 4px;
+}
+.sfy-ctx button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--sfy-text, #dcddde);
+  font-size: 12px;
+  text-align: left;
+  padding: 5px 9px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.sfy-ctx button:hover { background: var(--sfy-accent, #7c3aed); color: var(--text-on-accent, #fff); }
+.sfy-ctx button.sfy-ctx-danger:hover { background: var(--sfy-bad, #ef4444); }
+.sfy-ctx hr {
+  border: none;
+  border-top: 1px solid var(--sfy-border);
+  margin: 4px 6px;
+}
+
+/* ---- Aide raccourcis ---- */
+.sfy-help {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  background: #000a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sfy-help-card {
+  background: var(--sfy-panel);
+  border: 1px solid var(--sfy-border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  max-width: 540px;
+  color: var(--sfy-text, #dcddde);
+}
+.sfy-help-cols {
+  display: flex;
+  gap: 24px;
+  margin-top: 10px;
+}
+.sfy-help-row {
+  font-size: 11.5px;
+  margin: 4px 0;
+  color: var(--sfy-text, #dcddde);
+}
+.sfy-help-row kbd {
+  background: var(--sfy-card, #2d2d2d);
+  border: 1px solid var(--sfy-border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 0 5px;
+  font-size: 10.5px;
+  font-family: inherit;
+}
+
+/* ---- Message d'erreur de parsing ---- */
+.sfy-error {
+  padding: 12px 14px;
+  border: 1px solid var(--sfy-bad);
+  border-radius: 8px;
+  background: rgba(var(--color-red-rgb, 239, 68, 68), 0.12);
+  color: var(--text-error, #fca5a5);
+  font-family: var(--font-monospace, monospace);
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+/* Conteneur du graphe (anciennement style inline statique). */
+.sfy-graph-wrap {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}

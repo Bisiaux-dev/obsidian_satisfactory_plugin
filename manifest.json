@@ -1,0 +1,9 @@
+{
+  "id": "satisfactory-chains",
+  "name": "Satisfactory chains",
+  "version": "0.1.0",
+  "minAppVersion": "1.5.0",
+  "description": "Plan, visualize and verify Satisfactory production chains as interactive graphs stored in plain Markdown.",
+  "author": "Pierre Bisiaux",
+  "isDesktopOnly": true
+}

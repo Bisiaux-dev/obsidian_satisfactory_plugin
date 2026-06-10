@@ -1,0 +1,39 @@
+{
+  "name": "satisfactory-chains",
+  "version": "0.1.0",
+  "description": "Plan, visualize and verify Satisfactory production chains as interactive graphs stored in plain Markdown.",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+    "typecheck": "tsc -noEmit -skipLibCheck",
+    "deploy:test": "node _test/deploy.cjs",
+    "launch:test": "powershell -ExecutionPolicy Bypass -File _test/launch-obsidian.ps1 -Vault ../satisfactory-test-vault",
+    "test:e2e": "node _test/e2e.cjs"
+  },
+  "keywords": [
+    "obsidian",
+    "satisfactory",
+    "plugin"
+  ],
+  "license": "AGPL-3.0-or-later",
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "builtin-modules": "^3.3.0",
+    "esbuild": "^0.21.5",
+    "obsidian": "latest",
+    "pngjs": "^7.0.0",
+    "typescript": "^5.4.5",
+    "ws": "^8.21.0"
+  },
+  "dependencies": {
+    "@dagrejs/dagre": "^3.0.0",
+    "@xyflow/react": "^12.11.0",
+    "javascript-lp-solver": "^1.0.3",
+    "lucide-react": "^1.17.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  }
+}

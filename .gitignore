@@ -1,0 +1,23 @@
+# build output
+main.js
+main.js.map
+
+# dependencies
+node_modules/
+
+# test / harness artifacts
+_test/last-run.png
+harness/bundle.js
+
+# logs / os
+*.log
+.DS_Store
+
+# editor
+.vscode/
+
+# données brutes du jeu (régénérables via _data/generate.cjs)
+_data/data.json
+_data/greeny.json
+_data/docs10/
+_data/*.zip
