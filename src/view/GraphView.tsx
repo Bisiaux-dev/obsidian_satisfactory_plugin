@@ -496,17 +496,26 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
 
   // Connecting two nodes → new link (product chosen automatically).
   // Explicit feedback: success = what was routed, refusal = why.
+  // Did the current connection drag actually create a link? Reset on drag start,
+  // set in onConnect; onConnectEnd opens the "create a consumer" picker when it
+  // stayed false (dropped in the void OR onto a node that can't consume the
+  // product) — so you no longer have to release far away from every node.
+  const connectedRef = useRef(false);
+  const onConnectStart = useCallback(() => { connectedRef.current = false; }, []);
   const onConnect = useCallback(
     (c: Connection) => {
       if (!onSceneChange) return;
       const res = connect(scene, db, c);
       if (res.ok) {
+        connectedRef.current = true;
         commit(res.scene);
         const item = db.items[res.produit]?.nom ?? res.produit;
         const dest = res.vers === SINK ? "Sink" : res.vers;
         onNotice?.(`Link created: ${item} ${res.debit}/min → ${dest}`);
       } else {
-        onNotice?.(res.reason);
+        // Snapped onto a node that can't consume it → no link; the picker opens
+        // in onConnectEnd (more useful than a refusal toast).
+        connectedRef.current = false;
       }
     },
     [scene, db, onSceneChange, commit, onNotice],
@@ -627,7 +636,11 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
   const wrapperRef = useRef<HTMLDivElement>(null);
   const onConnectEnd = useCallback(
     (event: MouseEvent | TouchEvent, state: { isValid: boolean | null; fromNode: { id: string } | null }) => {
-      if (!onSceneChange || state.isValid || !state.fromNode) return;
+      const created = connectedRef.current;
+      connectedRef.current = false;
+      // Open the picker whenever NO link was created (void drop or snapped onto a
+      // non-consuming node), not only on a strictly "far" release.
+      if (!onSceneChange || created || !state.fromNode) return;
       const src = scene.noeuds.find((n) => n.id === state.fromNode!.id);
       if (!src) return; // Sink / module / layer: no creation from those
       const outputs = nodePorts(src, db, scene.liens).extrants.map((p) => p.item);
@@ -946,6 +959,7 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
       onEdgesChange={onEdgesChange}
       onNodeDragStop={onNodeDragStop}
       onConnect={onConnect}
+      onConnectStart={onConnectStart}
       onConnectEnd={onConnectEnd}
       onDelete={onDelete}
       onInit={onInit}
