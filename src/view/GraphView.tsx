@@ -502,6 +502,10 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
   // product) — so you no longer have to release far away from every node.
   const connectedRef = useRef(false);
   const onConnectStart = useCallback(() => { connectedRef.current = false; }, []);
+  // A connection released on the pane fires an onPaneClick right after — which
+  // would instantly close the consumer picker we just opened. Suppress that one
+  // click (short time window) so the picker survives an in-canvas release.
+  const suppressPaneClickUntil = useRef(0);
   const onConnect = useCallback(
     (c: Connection) => {
       if (!onSceneChange) return;
@@ -632,32 +636,68 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
     [scene, db, extPicker, onSceneChange, commit, onNotice],
   );
 
-  // Connection dropped in the void → picker filtered to consumers.
+  // End of a connection drag. We decide the target OURSELVES from the drop point
+  // instead of relying on React Flow's snap (in a dense graph it snaps to the
+  // nearest handle, so the void-picker only triggered "very far"). Rule: connect
+  // to the closest node whose box is within DROP_TOL px of the drop AND that
+  // consumes one of the source's products; otherwise open the "create a consumer"
+  // picker right there. `connectionRadius` is lowered so RF doesn't pre-empt this.
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const DROP_TOL = 50;
   const onConnectEnd = useCallback(
     (event: MouseEvent | TouchEvent, state: { isValid: boolean | null; fromNode: { id: string } | null }) => {
       const created = connectedRef.current;
       connectedRef.current = false;
-      // Open the picker whenever NO link was created (void drop or snapped onto a
-      // non-consuming node), not only on a strictly "far" release.
-      if (!onSceneChange || created || !state.fromNode) return;
+      if (!onSceneChange || !state.fromNode) return;
       const src = scene.noeuds.find((n) => n.id === state.fromNode!.id);
       if (!src) return; // Sink / module / layer: no creation from those
+      if (created) return; // RF already linked on a precise handle
       const outputs = nodePorts(src, db, scene.liens).extrants.map((p) => p.item);
       if (outputs.length === 0) return;
       const pt = "clientX" in event ? event : (event as TouchEvent).changedTouches[0];
-      const fp = instRef.current?.screenToFlowPosition({ x: pt.clientX, y: pt.clientY });
+
+      // Closest node within DROP_TOL of the drop point (by DOM bounding box).
+      const dropX = pt.clientX;
+      const dropY = pt.clientY;
+      let targetId: string | null = null;
+      let bestDist = Infinity;
+      for (const cand of [...scene.noeuds.map((n) => n.id), SINK]) {
+        if (cand === src.id) continue;
+        const el = wrapperRef.current?.querySelector(`.react-flow__node[data-id="${cand}"]`);
+        if (!el) continue;
+        const r = (el as HTMLElement).getBoundingClientRect();
+        const dx = dropX < r.left ? r.left - dropX : dropX > r.right ? dropX - r.right : 0;
+        const dy = dropY < r.top ? r.top - dropY : dropY > r.bottom ? dropY - r.bottom : 0;
+        const dist = Math.hypot(dx, dy);
+        if (dist <= DROP_TOL && dist < bestDist) { bestDist = dist; targetId = cand; }
+      }
+
+      // A node is within reach → try to connect to it (auto-picks a consumed product).
+      if (targetId) {
+        const res = connect(scene, db, { source: src.id, target: targetId });
+        if (res.ok) {
+          commit(res.scene);
+          const item = db.items[res.produit]?.nom ?? res.produit;
+          onNotice?.(`Link created: ${item} ${res.debit}/min → ${res.vers === SINK ? "Sink" : res.vers}`);
+          return;
+        }
+        // within reach but can't consume → fall through to the picker
+      }
+
+      // Otherwise: open the consumer picker at the drop point.
+      const fp = instRef.current?.screenToFlowPosition({ x: dropX, y: dropY });
       if (!fp) return;
       const r = wrapperRef.current?.getBoundingClientRect();
+      suppressPaneClickUntil.current = Date.now() + 350; // ignore the release's pane click
       setPicker({
         mode: "connect",
         sourceId: src.id,
         items: outputs,
         flowPos: [Math.round(fp.x), Math.round(fp.y)],
-        panelPos: [pt.clientX - (r?.left ?? 0), pt.clientY - (r?.top ?? 0)],
+        panelPos: [dropX - (r?.left ?? 0), dropY - (r?.top ?? 0)],
       });
     },
-    [scene, db, onSceneChange],
+    [scene, db, onSceneChange, commit, onNotice],
   );
 
   // Left→right auto-layout (dagre) → spaces everything out cleanly.
@@ -966,11 +1006,17 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
       onMoveEnd={persistViewport}
       onSelectionChange={onSelectionChange}
       onNodeDoubleClick={onNodeDoubleClick}
-      onPaneClick={() => { setEditorNodeId(null); setPicker(null); setImportPicker(null); setExtPicker(null); setCtx(null); }}
+      onPaneClick={() => {
+        // Swallow the click that immediately follows a connection-drag release
+        // (it would close the picker onConnectEnd just opened).
+        if (Date.now() < suppressPaneClickUntil.current) { suppressPaneClickUntil.current = 0; return; }
+        setEditorNodeId(null); setPicker(null); setImportPicker(null); setExtPicker(null); setCtx(null);
+      }}
       onPaneContextMenu={onPaneContextMenu}
       onNodeContextMenu={onNodeContextMenu}
       onEdgeContextMenu={onEdgeContextMenu}
       connectionMode={ConnectionMode.Loose}
+      connectionRadius={10}
       deleteKeyCode={["Delete", "Backspace"]}
       multiSelectionKeyCode={["Control", "Meta", "Shift"]}
       selectionKeyCode="Shift"
