@@ -891,7 +891,8 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
       edgeTypes={EDGE_TYPES}
       fitView={!savedViewport}
       proOptions={{ hideAttribution: true }}
-      minZoom={0.2}
+      // Low floor so fit-view can frame very large generated factories (50+ nodes).
+      minZoom={0.05}
     >
       {onSceneChange ? (
         <Panel position="top-left" className="sfy-toolbar">
