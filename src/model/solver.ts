@@ -1,13 +1,13 @@
 /**
- * Optimiseur de chaîne : pour produire `target` à `rate`/min, choisit la
- * combinaison de recettes (alternatives incluses) qui MINIMISE le total de
- * ressources BRUTES (minerais + liquides), l'eau étant illimitée (coût nul).
+ * Chain optimizer: to produce `target` at `rate`/min, picks the combination
+ * of recipes (alternates included) that MINIMIZES the total of RAW resources
+ * (ores + liquids), water being unlimited (zero cost).
  *
- * Programmation linéaire (javascript-lp-solver) :
- *  - variable x_r ≥ 0 = nombre de machines (continu) de la recette r ;
- *  - variable raw_i ≥ 0 = extraction brute de la ressource i ;
- *  - contrainte par item i : Σ_r x_r·(prod_i−cons_i) (+ raw_i si brut) ≥ demande_i ;
- *  - objectif : min Σ raw_i  (ressources brutes hors eau).
+ * Linear programming (javascript-lp-solver):
+ *  - variable x_r ≥ 0 = number of machines (continuous) for recipe r;
+ *  - variable raw_i ≥ 0 = raw extraction of resource i;
+ *  - constraint per item i: Σ_r x_r·(prod_i−cons_i) (+ raw_i if raw) ≥ demand_i;
+ *  - objective: min Σ raw_i  (raw resources excluding water).
  */
 import solver from "javascript-lp-solver";
 import type { Db, Node, Scene } from "./types";
@@ -17,19 +17,19 @@ import { autoLayout } from "./layout";
 export interface SolveResult {
   ok: boolean;
   error?: string;
-  /** Recettes retenues avec leur nombre de machines. */
+  /** Selected recipes with their machine counts. */
   recipes: { id: string; machines: number }[];
-  /** Ressources brutes consommées (hors eau), triées par débit décroissant. */
+  /** Raw resources consumed (excluding water), sorted by decreasing rate. */
   raw: { item: string; debit: number }[];
 }
 
-/** Ce que l'optimiseur minimise. */
+/** What the optimizer minimizes. */
 export type Objective = "raw" | "machines";
 
 export interface SolveOptions {
-  /** "raw" = ressources brutes (défaut) ; "machines" = nombre total de machines. */
+  /** "raw" = raw resources (default); "machines" = total machine count. */
   objective?: Objective;
-  /** false = recettes standard uniquement (pas d'alternatives). Défaut true. */
+  /** false = standard recipes only (no alternates). Default true. */
   allowAlternates?: boolean;
 }
 
@@ -53,23 +53,23 @@ export function optimize(
   const variables: Record<string, Record<string, number>> = {};
   const constraints: Record<string, { min?: number; equal?: number }> = {};
 
-  // Items concernés (apparaissent dans une recette) — une contrainte de bilan chacun.
+  // Relevant items (appear in a recipe) — one balance constraint each.
   const touched = new Set<string>([target]);
   for (const r of Object.values(db.recipes)) {
     for (const p of [...r.intrants, ...r.extrants]) touched.add(p.item);
   }
   for (const item of touched) {
-    if (infinite.has(item)) continue; // eau : illimitée, pas de contrainte
+    if (infinite.has(item)) continue; // water: unlimited, no constraint
     constraints[`bal_${item}`] = { min: item === target ? rate : 0 };
   }
 
-  // Coûts selon l'objectif. L'objectif secondaire reçoit un poids epsilon :
-  // il départage les solutions à objectif principal égal (et garde le rapport
-  // raw/machines lisible) sans influencer le choix principal.
+  // Costs depend on the objective. The secondary objective gets an epsilon
+  // weight: it breaks ties between solutions with equal primary objective (and
+  // keeps the raw/machines ratio readable) without affecting the main choice.
   const machineCost = objective === "machines" ? 1 : 1e-4;
   const rawCost = objective === "raw" ? 1 : 1e-3;
 
-  // Variables recettes : coefficient net (prod − cons) par item.
+  // Recipe variables: net coefficient (prod − cons) per item.
   for (const r of Object.values(db.recipes)) {
     if (!allowAlternates && r.alternative) continue;
     const v: Record<string, number> = { cost: machineCost };
@@ -82,7 +82,7 @@ export function optimize(
     if (Object.keys(v).length > 1) variables[`r:${r.id}`] = v;
   }
 
-  // Variables extraction brute : +1 au bilan de leur item (coût selon l'objectif, eau exclue).
+  // Raw extraction variables: +1 to their item's balance (cost per objective, water excluded).
   for (const item of base) {
     if (infinite.has(item)) continue;
     variables[`raw:${item}`] = { [`bal_${item}`]: 1, cost: rawCost };
@@ -113,10 +113,10 @@ export function optimize(
 }
 
 /**
- * Construit une Scene à partir d'une solution : un nœud par recette retenue, un
- * nœud "Extraction" (débits personnalisés) par ressource brute, et des liens
- * alloués produit par produit (allocation gloutonne producteurs→consommateurs ;
- * surplus → Sink). Auto-layout appliqué pour un placement propre.
+ * Builds a Scene from a solution: one node per selected recipe, one
+ * "Extraction" node (custom rates) per raw resource, and links allocated
+ * product by product (greedy producers→consumers allocation;
+ * surplus → Sink). Auto-layout applied for a clean placement.
  */
 export function sceneFromSolution(
   db: Db,
@@ -137,14 +137,14 @@ export function sceneFromSolution(
     (consumers.get(item) ?? consumers.set(item, []).get(item)!).push({ nodeId, remaining: d });
   };
 
-  // Sources brutes (nœuds à débits personnalisés : pas d'intrant).
+  // Raw sources (custom-rate nodes: no input).
   for (const { item, debit } of result.raw) {
     const id = `src-${item}`;
     noeuds.push({ id, recette: "", machines: 1, machine: "Extraction", intrants: [], extrants: [{ item, debit }] });
     addProd(item, id, debit);
   }
 
-  // Nœuds recettes.
+  // Recipe nodes.
   result.recipes.forEach((r, k) => {
     const rec = db.recipes[r.id];
     if (!rec) return;
@@ -154,11 +154,11 @@ export function sceneFromSolution(
     for (const p of rec.intrants) addCons(p.item, id, p.debit * r.machines);
   });
 
-  // Demande finale : la cible part vers le Sink.
+  // Final demand: the target flows to the Sink.
   addCons(target, SINK, rate);
 
-  // Sources pour les ressources illimitées consommées (eau = pompe), dimensionnées
-  // à la demande → pas de faux "sous-alimenté".
+  // Sources for consumed unlimited resources (water = pump), sized to the
+  // demand → no false "under-supplied".
   for (const item of infiniteItems) {
     const cons = consumers.get(item);
     if (!cons || cons.length === 0) continue;
@@ -168,7 +168,7 @@ export function sceneFromSolution(
     addProd(item, id, total);
   }
 
-  // Allocation produit par produit (glouton). Surplus producteur → Sink.
+  // Product-by-product allocation (greedy). Producer surplus → Sink.
   const liens: Scene["liens"] = [];
   for (const [item, prods] of producers) {
     const cons = consumers.get(item) ?? [];
@@ -184,7 +184,7 @@ export function sceneFromSolution(
       if (prods[pi].remaining <= EPS) pi++;
       if (cons[ci].remaining <= EPS) ci++;
     }
-    // Surplus producteur → Sink, MAIS le Sink n'accepte pas les fluides.
+    // Producer surplus → Sink, BUT the Sink does not accept fluids.
     const sinkable = db.items[item]?.etat !== "fluide";
     for (; pi < prods.length && sinkable; pi++) {
       if (prods[pi].remaining > EPS) {

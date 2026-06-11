@@ -141,6 +141,10 @@ layers:
 | Undo / redo | **Ctrl+Z** / **Ctrl+Shift+Z** |
 | Help | `?` or the toolbar button — full keyboard + mouse reference |
 
+![Node picker: search, grouped by machine, alternates apart](assets/portal-2-picker.png)
+
+![Import the production of another note as a black box, kept in sync](assets/portal-4-import.png)
+
 Everything is written back to the `.md` (stable camera, no flicker).
 
 > **Setting** (*Settings → Satisfactory chains*): **Whole machines** — disabled by default (decimals allowed, useful for clock speed); enabled, machine counts are rounded when editing.
@@ -160,6 +164,8 @@ resources or machine count** (your choice; water is free because unlimited).
 It is a **linear programming** problem: variables = machine count per recipe +
 extraction per resource; constraint = balance ≥ demand for every item;
 objective = minimize the chosen cost. Details in [`src/model/solver.ts`](./src/model/solver.ts).
+
+![Optimizer: target item + rate, objective, computed plan](assets/portal-3-optimizer.png)
 
 ---
 

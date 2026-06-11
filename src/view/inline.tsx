@@ -2,33 +2,33 @@ import { createContext, useContext, useRef, useState } from "react";
 import { Pencil } from "lucide-react";
 import type { NodePatch } from "../model/edit";
 
-/** Contexte fournissant la mutation d'un nœud aux composants de nœud (édition inline). */
+/** Context providing the node mutation to node components (inline editing). */
 export const EditContext = createContext<((id: string, patch: NodePatch) => void) | null>(null);
 export const useEditNode = () => useContext(EditContext);
 
-/** Contexte pour basculer le bout d'un lien (➤ ↔ ♻) au double-clic sur la flèche. */
+/** Context to toggle a link's cap (➤ ↔ ♻) on double-click on the arrow. */
 export const LinkContext = createContext<((de: string, vers: string, produit: string) => void) | null>(null);
 export const useToggleLink = () => useContext(LinkContext);
 
-/** Réglages du plugin exposés aux composants (ex. machines entières). */
+/** Plugin settings exposed to components (e.g. whole machines). */
 export const SettingsContext = createContext<{ wholeMachines: boolean }>({ wholeMachines: false });
 export const useSettings = () => useContext(SettingsContext);
 
-/** Actions sur un calque, fournies aux en-têtes de groupe / nœuds module. */
+/** Actions on a layer, provided to group headers / module nodes. */
 export interface LayerActions {
   toggle: (layerId: string) => void;
   beginRename: (layerId: string) => void;
   applyRename: (layerId: string, nom: string) => void;
-  /** id du calque en cours de renommage (état porté par GraphView, stable). */
+  /** id of the layer being renamed (state held by GraphView, stable). */
   editingId: string | null;
 }
 export const LayerContext = createContext<LayerActions | null>(null);
 export const useLayerActions = () => useContext(LayerContext);
 
 /**
- * Nom de calque éditable (double-clic). L'état "en cours d'édition" vit dans
- * GraphView (via le contexte), pas localement — car le nœud-calque (boîte) est
- * recalculé à chaque rendu, ce qui effacerait un état local.
+ * Editable layer name (double-click). The "currently editing" state lives in
+ * GraphView (via the context), not locally — because the layer node (box) is
+ * recomputed on every render, which would wipe out local state.
  */
 export function LayerName({ layerId, nom }: { layerId: string; nom: string }) {
   const a = useLayerActions();
@@ -75,8 +75,8 @@ export function LayerName({ layerId, nom }: { layerId: string; nom: string }) {
 }
 
 /**
- * Valeur éditable inline : double-clic → input, Entrée/blur valide, Échap annule.
- * `nodrag`/`stopPropagation` pour ne pas déclencher le drag du nœud.
+ * Inline editable value: double-click → input, Enter/blur commits, Escape cancels.
+ * `nodrag`/`stopPropagation` so as not to trigger the node drag.
  */
 export function Inline({
   value,

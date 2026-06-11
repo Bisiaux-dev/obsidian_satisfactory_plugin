@@ -1,8 +1,8 @@
 /**
- * Client CDP : connexion WebSocket au endpoint Chrome DevTools d'Obsidian
- * (lancé avec --remote-debugging-port). Adapté du harness obsidian-lore-graph,
- * enrichi de `screenshot()` et `drag()` (events souris réels via CDP) pour
- * tester le rendu React Flow et le write-back au drop du plugin Satisfactory.
+ * CDP client: WebSocket connection to Obsidian's Chrome DevTools endpoint
+ * (launched with --remote-debugging-port). Adapted from the obsidian-lore-graph
+ * harness, extended with `screenshot()` and `drag()` (real mouse events via CDP)
+ * to test the Satisfactory plugin's React Flow rendering and drop write-back.
  */
 const http = require("http");
 const fs = require("fs");
@@ -30,11 +30,11 @@ function fetchJson(url) {
 
 async function findTarget() {
   const targets = await fetchJson(`http://localhost:${PORT}/json/list`);
-  // La page principale d'Obsidian (pas les devtools ni les iframes vides).
+  // Obsidian's main page (not the devtools nor the empty iframes).
   const page = targets.find(
     (t) => t.type === "page" && !t.url.startsWith("devtools://") && t.url.startsWith("app://"),
   ) || targets.find((t) => t.type === "page" && !t.url.startsWith("devtools://"));
-  if (!page) throw new Error("aucune page Obsidian trouvée sur le CDP");
+  if (!page) throw new Error("no Obsidian page found on the CDP endpoint");
   return page;
 }
 
@@ -43,7 +43,7 @@ function sleep(ms) {
 }
 
 /**
- * Se connecte à Obsidian et renvoie { evalJS, send, screenshot, drag, close, target }.
+ * Connects to Obsidian and returns { evalJS, send, screenshot, drag, close, target }.
  */
 async function connect() {
   const target = await findTarget();
@@ -98,9 +98,9 @@ async function connect() {
     return filePath;
   }
 
-  // Drag souris réel (CDP Input) : mousePressed → moves → mouseReleased.
-  // Pauses généreuses : React Flow capture le pointer au mousedown puis suit les
-  // pointermove ; un drag trop rapide rate parfois la capture.
+  // Real mouse drag (CDP Input): mousePressed → moves → mouseReleased.
+  // Generous pauses: React Flow captures the pointer on mousedown then follows the
+  // pointermove events; a drag that is too fast sometimes misses the capture.
   async function drag(x1, y1, x2, y2, steps = 12) {
     await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: x1, y: y1 });
     await sleep(40);

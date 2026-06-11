@@ -5,19 +5,19 @@ import type { Port, Status } from "../model/types";
 import { DeleteButton } from "./DeleteButton";
 import { Inline, useEditNode } from "./inline";
 
-/** Données d'un nœud de ressource brute (extracteur / pompe : pas d'intrant). */
+/** Data for a raw resource node (extractor / pump: no input). */
 export interface RawNodeData extends Record<string, unknown> {
   icone?: string;
-  /** Icône image (data-URI) de l'item extrait ; prioritaire sur `icone`. */
+  /** Image icon (data-URI) of the extracted item; takes precedence over `icone`. */
   iconUrl?: string;
   nom: string;
   machine: string;
   debit: number;
   status: Status;
   issues: string[];
-  /** Débits effectifs (pour matérialiser une surcharge à l'édition inline). */
+  /** Effective flow rates (to materialize an override on inline edit). */
   extrants: Port[];
-  /** true si ce nœud importe la production d'une autre note (badge 📥). */
+  /** true if this node imports another note's production (📥 badge). */
   isImport?: boolean;
 }
 

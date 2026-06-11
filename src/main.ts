@@ -3,11 +3,11 @@ import type { App, MarkdownPostProcessorContext } from "obsidian";
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";
-// CSS de React Flow embarqué comme texte (loader esbuild) puis injecté au chargement.
+// React Flow CSS embedded as text (esbuild loader) then injected on load.
 import xyflowCss from "@xyflow/react/dist/style.css";
-// Guide utilisateur + IA embarqué dans le bundle (loader esbuild `.md`) → écrit
-// dans le vault au 1er lancement. C'est la seule façon fiable de livrer la doc
-// AVEC le plugin : le store communautaire n'installe que main.js/manifest/styles.
+// User + AI guide embedded in the bundle (esbuild `.md` loader) → written
+// to the vault on first launch. This is the only reliable way to ship the docs
+// WITH the plugin: the community store only installs main.js/manifest/styles.
 import guideMd from "../GUIDE.md";
 import { parseScene, SceneParseError } from "./schema";
 import { serializeScene } from "./serialize";
@@ -32,30 +32,30 @@ ${SFY_BLOCK}
 `;
 
 /**
- * Racine React PERSISTANTE pour un bloc (clé = note + surface de rendu).
+ * PERSISTENT React root for a block (key = note + render surface).
  *
- * Problème résolu : Obsidian recrée le DOM du bloc à chaque écriture `.md`
- * (write-back). Si on créait une racine React neuve à chaque fois, React
- * démonterait/remonterait → flash, nœuds qui « popent », caméra recadrée.
- * Ici on garde la racine et son conteneur vivants : à chaque re-rendu d'Obsidian
- * on DÉPLACE le même conteneur dans le nouvel élément (aucun démontage) et on
- * re-rend (React RÉCONCILIE l'arbre existant → pas de flash, l'instance React
- * Flow et la caméra sont conservées). `rev` (syncToken) signale à GraphView de
- * re-synchroniser ses nœuds/arêtes depuis la nouvelle scène.
+ * Problem solved: Obsidian recreates the block's DOM on every `.md` write
+ * (write-back). If we created a fresh React root each time, React would
+ * unmount/remount → flash, nodes "popping", camera reset.
+ * Here we keep the root and its container alive: on every Obsidian re-render
+ * we MOVE the same container into the new element (no unmount) and re-render
+ * (React RECONCILES the existing tree → no flash, the React Flow instance
+ * and the camera are preserved). `rev` (syncToken) tells GraphView to
+ * re-sync its nodes/edges from the new scene.
  */
 interface BlockRoot {
   container: HTMLElement;
   root: Root;
-  /** Bumpé à chaque re-rendu → re-synchro de l'état React Flow dans GraphView. */
+  /** Bumped on every re-render → re-syncs the React Flow state in GraphView. */
   rev: number;
-  /** Contexte/élément courants (pour le write-back : getSectionInfo). */
+  /** Current context/element (for write-back: getSectionInfo). */
   el: HTMLElement;
   ctx: MarkdownPostProcessorContext;
-  /** Dernière scène rendue, imports RÉSOLUS (pour re-rendre au changement de réglage). */
+  /** Last rendered scene, imports RESOLVED (to re-render on a settings change). */
   scene: Scene;
-  /** Scène brute parsée (avant résolution des imports) — pour re-résoudre si une note importée change. */
+  /** Raw parsed scene (before import resolution) — to re-resolve if an imported note changes. */
   rawScene: Scene;
-  /** Chemins des notes importées par ce bloc (pour la re-synchro à leur modification). */
+  /** Paths of the notes imported by this block (to re-sync when they are modified). */
   importDeps: string[];
 }
 
@@ -66,9 +66,9 @@ const ITEMS_PATH = normalizePath(`${DOC_FOLDER}/items.md`);
 const RECIPES_PATH = normalizePath(`${DOC_FOLDER}/recipes.md`);
 
 interface SfySettings {
-  /** Forcer un nombre de machines entier à l'édition (désactivé par défaut). */
+  /** Force whole machine counts when editing (disabled by default). */
   wholeMachines: boolean;
-  /** Doc (guide + DB) déjà déposée dans le vault au moins une fois (évite de la recréer si l'utilisateur la supprime). */
+  /** Docs (guide + DB) already deposited in the vault at least once (avoids recreating them if the user deletes them). */
   docsInstalled: boolean;
 }
 const DEFAULT_SETTINGS: SfySettings = { wholeMachines: false, docsInstalled: false };
@@ -93,22 +93,22 @@ class SatisfactoryRenderChild extends MarkdownRenderChild {
       this.containerEl.createDiv({ cls: "sfy-error", text: `Invalid satisfactory block\n${msg}` });
       return;
     }
-    // Résolution des imports (lecture d'autres notes) → asynchrone.
+    // Import resolution (reads other notes) → asynchronous.
     void this.plugin.renderBlock(this.containerEl, this.pctx, scene);
   }
 
   onunload(): void {
-    // On NE démonte PAS : la racine est persistante (réutilisée si la note est
-    // rouverte). Toutes les racines sont nettoyées au déchargement du plugin.
-    // (Pas d'éviction temporisée ici : elle provoquait des démontages parasites
-    // lors de re-rendus rapprochés — conteneur brièvement détaché.)
+    // We do NOT unmount: the root is persistent (reused if the note is
+    // reopened). All roots are cleaned up when the plugin unloads.
+    // (No timed eviction here: it caused spurious unmounts during
+    // back-to-back re-renders — container briefly detached.)
   }
 }
 
 export default class SatisfactoryPlugin extends Plugin {
   private styleEl: HTMLStyleElement | null = null;
   private readonly roots = new Map<string, BlockRoot>();
-  /** Clés vues déconnectées au sweep précédent (éviction en deux temps). */
+  /** Keys seen disconnected at the previous sweep (two-step eviction). */
   private readonly detachedRoots = new Set<string>();
   settings: SfySettings = { ...DEFAULT_SETTINGS };
 
@@ -123,8 +123,8 @@ export default class SatisfactoryPlugin extends Plugin {
       ctx.addChild(new SatisfactoryRenderChild(this, el, ctx, source));
     });
 
-    // SYNC inter-notes : si une note IMPORTÉE par un bloc affiché change, on
-    // re-résout et re-rend les blocs qui en dépendent (les débits importés suivent).
+    // Cross-note SYNC: if a note IMPORTED by a displayed block changes, we
+    // re-resolve and re-render the blocks that depend on it (imported rates follow).
     this.registerEvent(
       this.app.vault.on("modify", (file) => {
         if (!(file instanceof TFile)) return;
@@ -201,12 +201,12 @@ export default class SatisfactoryPlugin extends Plugin {
   }
 
   /**
-   * Dépose la doc embarquée dans le vault (dossier {@link DOC_FOLDER}) :
-   *  - `Guide.md` — guide humain + IA (statique, jamais écrasé : respecte les notes de l'utilisateur) ;
-   *  - `items.md` / `recipes.md` — DB **régénérée depuis {@link GAME_DB}** à chaque appel (toujours synchro).
+   * Deposits the bundled docs into the vault (folder {@link DOC_FOLDER}):
+   *  - `Guide.md` — human + AI guide (static, never overwritten: respects the user's notes);
+   *  - `items.md` / `recipes.md` — DB **regenerated from {@link GAME_DB}** on every call (always in sync).
    *
-   * Appelée une fois au 1er lancement, et à la demande via la commande (qui rafraîchit alors la DB).
-   * Le flag `docsInstalled` évite la recréation automatique si l'utilisateur supprime le dossier.
+   * Called once on first launch, and on demand via the command (which then refreshes the DB).
+   * The `docsInstalled` flag prevents automatic recreation if the user deletes the folder.
    */
   private async installDocs(open: boolean): Promise<void> {
     if (!(this.app.vault.getAbstractFileByPath(DOC_FOLDER))) {
@@ -239,15 +239,15 @@ export default class SatisfactoryPlugin extends Plugin {
     new Notice("New chain created — click Optimize or + Node.");
   }
 
-  /** Clé stable par (note, surface) : éditeur live-preview vs vue lecture. */
+  /** Stable key per (note, surface): live-preview editor vs reading view. */
   private keyFor(el: HTMLElement, ctx: MarkdownPostProcessorContext): string {
     const surface = el.closest(".markdown-reading-view") ? "read" : "edit";
     return `${ctx.sourcePath}::${surface}`;
   }
 
   /**
-   * Résout les nœuds d'`import` (boîtes noires inter-notes) puis monte/rafraîchit
-   * le bloc. Asynchrone car la résolution lit d'autres notes du vault.
+   * Resolves `import` nodes (cross-note black boxes) then mounts/refreshes
+   * the block. Asynchronous because resolution reads other vault notes.
    */
   async renderBlock(el: HTMLElement, ctx: MarkdownPostProcessorContext, rawScene: Scene): Promise<void> {
     let scene = rawScene;
@@ -257,14 +257,14 @@ export default class SatisfactoryPlugin extends Plugin {
       scene = resolved.scene;
       deps = resolved.deps;
     } catch {
-      /* en cas d'échec, on rend la scène brute (les imports resteront vides) */
+      /* on failure, render the raw scene (imports will stay empty) */
     }
     this.mountOrUpdate(el, ctx, scene, rawScene, deps);
   }
 
   /**
-   * Remplace chaque nœud `import` par une boîte noire exposant les LIVRABLES de la
-   * note référencée (× `machines`). Renvoie la scène résolue + les chemins importés.
+   * Replaces each `import` node with a black box exposing the DELIVERABLES of the
+   * referenced note (× `machines`). Returns the resolved scene + the imported paths.
    */
   private async resolveImports(scene: Scene, sourcePath: string): Promise<{ scene: Scene; deps: string[] }> {
     if (!scene.noeuds.some((n) => n.import)) return { scene, deps: [] };
@@ -286,7 +286,7 @@ export default class SatisfactoryPlugin extends Plugin {
             extrants = sceneExports(parseScene(body), GAME_DB).map((e) => ({ item: e.item, debit: round2(e.debit * m) }));
           }
         } catch {
-          /* note importée invalide → import vide (signalé visuellement) */
+          /* invalid imported note → empty import (flagged visually) */
         }
         return { ...n, intrants: [] as Port[], extrants, machine: file.basename };
       }),
@@ -295,21 +295,21 @@ export default class SatisfactoryPlugin extends Plugin {
   }
 
   /**
-   * Monte la racine si absente, sinon réattache le conteneur existant et ne
-   * re-rend QUE si le contenu a changé hors de notre write-back.
+   * Mounts the root if absent, otherwise reattaches the existing container and
+   * only re-renders IF the content changed outside our write-back.
    */
   mountOrUpdate(el: HTMLElement, ctx: MarkdownPostProcessorContext, scene: Scene, rawScene: Scene, importDeps: string[]): void {
-    // NB : une racine par (note, surface). Limitation assumée — plusieurs blocs
-    // satisfactory dans la même note+surface partageraient la racine (cas rare,
-    // ce plugin = une usine par note). Pas de détection "2 blocs" : elle se
-    // déclenchait à tort pendant un re-rendu (ancien + nouvel élément coexistent
-    // un instant) → création d'une racine neuve = remontage = flicker.
+    // NB: one root per (note, surface). Accepted limitation — multiple
+    // satisfactory blocks in the same note+surface would share the root (rare
+    // case, this plugin = one factory per note). No "2 blocks" detection: it
+    // fired incorrectly during a re-render (old + new element coexist for a
+    // moment) → creating a fresh root = remount = flicker.
     const key = this.keyFor(el, ctx);
     const entry = this.roots.get(key);
     const diagnostic = diagnose(scene, GAME_DB);
 
     if (entry) {
-      // Réattache le conteneur vivant dans le nouvel élément (pas de démontage).
+      // Reattach the live container into the new element (no unmount).
       if (entry.container.parentElement !== el) el.appendChild(entry.container);
       entry.el = el;
       entry.ctx = ctx;
@@ -329,8 +329,8 @@ export default class SatisfactoryPlugin extends Plugin {
   }
 
   /**
-   * Notes du vault importables comme « usine » : tout `.md` (hors note courante
-   * et dossier de doc) contenant un bloc ```satisfactory.
+   * Vault notes importable as a "factory": any `.md` (excluding the current note
+   * and the docs folder) containing a ```satisfactory block.
    */
   private async listImportNotes(sourcePath: string): Promise<string[]> {
     const out: string[] = [];
@@ -338,7 +338,7 @@ export default class SatisfactoryPlugin extends Plugin {
       if (f.path === sourcePath || f.path.startsWith(`${DOC_FOLDER}/`)) continue;
       try {
         if ((await this.app.vault.cachedRead(f)).includes("```satisfactory")) out.push(f.basename);
-      } catch { /* note illisible → ignorée */ }
+      } catch { /* unreadable note → ignored */ }
     }
     return out.sort((a, b) => a.localeCompare(b));
   }
@@ -359,14 +359,14 @@ export default class SatisfactoryPlugin extends Plugin {
 
   async saveSettings(): Promise<void> {
     await this.saveData(this.settings);
-    // Re-rend toutes les vues avec le nouveau réglage.
+    // Re-render all views with the new setting.
     for (const [key, entry] of this.roots) {
       entry.rev += 1;
       entry.root.render(this.element(key, entry.scene, diagnose(entry.scene, GAME_DB), entry.ctx.sourcePath, entry.rev));
     }
   }
 
-  /** Réécrit le corps du bloc ```satisfactory dans la note. */
+  /** Rewrites the body of the ```satisfactory block in the note. */
   private async writeBack(key: string, scene: Scene): Promise<void> {
     const entry = this.roots.get(key);
     if (!entry) return;

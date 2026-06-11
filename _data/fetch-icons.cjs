@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 /**
- * Récupère les icônes des items depuis le wiki officiel (satisfactory.wiki.gg) et
- * génère src/model/game-icons.ts : { slug → data-URI base64 } embarqué dans le bundle.
+ * Fetches item icons from the official wiki (satisfactory.wiki.gg) and
+ * generates src/model/game-icons.ts: { slug → base64 data-URI } embedded in the bundle.
  *
- * Pourquoi base64 embarqué : le store communautaire d'Obsidian n'installe que
- * main.js/manifest/styles → un dossier d'images ne voyagerait pas avec le plugin.
+ * Why embedded base64: Obsidian's community store only installs
+ * main.js/manifest/styles → a folder of images would not ship with the plugin.
  *
- * Mapping : nom d'affichage de l'item → File:{Nom_avec_underscores}.png sur le wiki.
- * Vignettes 64 px via l'API MediaWiki (imageinfo + iiurlwidth) → pas de retraitement.
- * Les items sans fichier wiki sont simplement omis (l'UI retombe sur le texte).
+ * Mapping: item display name → File:{Name_with_underscores}.png on the wiki.
+ * 64 px thumbnails via the MediaWiki API (imageinfo + iiurlwidth) → no post-processing.
+ * Items without a wiki file are simply omitted (the UI falls back to text).
  *
- * Usage : node _data/fetch-icons.cjs   (après une régénération de game-db.ts)
+ * Usage: node _data/fetch-icons.cjs   (after regenerating game-db.ts)
  */
 const fs = require("fs");
 const path = require("path");
@@ -20,20 +20,20 @@ const { PNG } = require("pngjs");
 const WIKI = "satisfactory.wiki.gg";
 const WIDTH = 64;
 
-// --- Couleur d'item dérivée de son icône ---------------------------------
-// Une couleur par item, pour les arêtes (cf. cahier : « une couleur par item »,
-// teinte extraite de l'icône). Principe : on garde la TEINTE RÉELLE de l'icône
-// (les couleurs ressemblent aux items), on BOOSTE la saturation (les colorés
-// ressortent ; les gris gardent leur léger ton — ex. les vis = gris bleuté), et
-// on ramène la luminosité dans une bande lisible pour que les items SOMBRES
-// (huile, charbon) restent visibles sur le fond noir d'Obsidian.
-// Pas de teinte inventée : un item gris reste gris (honnête, quitte à être moins
-// différentiable). Ajuster ces 3 constantes pour pousser le rendu.
-const SAT_BOOST = 1.5;       // multiplicateur de saturation (items colorés)
-const SAT_BOOST_GREY = 5.08; // gris/blancs/noirs (s < GREY_S) : boost fort pour faire ressortir leur léger ton
-const GREY_S = 0.16;         // seuil de saturation réelle en-dessous duquel l'item est « gris »
-const LUM_MIN = 0.42;  // luminosité plancher (items sombres → visibles)
-const LUM_MAX = 0.62;  // luminosité plafond (items clairs → pas délavés)
+// --- Item color derived from its icon -------------------------------------
+// One color per item, used for edges (per the spec: "one color per item",
+// hue extracted from the icon). Principle: keep the icon's REAL HUE
+// (colors resemble the items), BOOST the saturation (colorful items
+// stand out; greys keep their slight tint — e.g. screws = bluish grey), and
+// clamp lightness into a readable band so that DARK items
+// (oil, coal) stay visible on Obsidian's black background.
+// No invented hue: a grey item stays grey (honest, even if less
+// distinguishable). Tweak these 3 constants to push the rendering.
+const SAT_BOOST = 1.5;       // saturation multiplier (colorful items)
+const SAT_BOOST_GREY = 5.08; // greys/whites/blacks (s < GREY_S): strong boost to bring out their slight tint
+const GREY_S = 0.16;         // real-saturation threshold below which the item counts as "grey"
+const LUM_MIN = 0.42;  // lightness floor (dark items → visible)
+const LUM_MAX = 0.62;  // lightness ceiling (light items → not washed out)
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 
 function rgbToHsl(r, g, b) {
@@ -57,10 +57,10 @@ function hslToHex(h, s, l) {
   const to = (x) => Math.round(255 * x).toString(16).padStart(2, "0");
   return `#${to(f(0))}${to(f(8))}${to(f(4))}`;
 }
-/** Affine une couleur RGB → teinte conservée, saturation boostée, luminosité bornée. */
+/** Refines an RGB color → hue preserved, saturation boosted, lightness clamped. */
 function refine(r, g, b) {
   const [h, s, l] = rgbToHsl(r, g, b);
-  const boost = s < GREY_S ? SAT_BOOST_GREY : SAT_BOOST; // gris → boost plus fort
+  const boost = s < GREY_S ? SAT_BOOST_GREY : SAT_BOOST; // grey → stronger boost
   return hslToHex(h, clamp(s * boost, 0, 1), clamp(l, LUM_MIN, LUM_MAX));
 }
 function hexToRgb(hex) {
@@ -68,14 +68,14 @@ function hexToRgb(hex) {
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
-/** Couleur d'un item à partir de la moyenne (pondérée alpha) de son icône PNG. */
+/** Item color from the (alpha-weighted) average of its PNG icon. */
 function iconColor(buf) {
   let png;
   try { png = PNG.sync.read(buf); } catch { return null; }
   let R = 0, G = 0, B = 0, A = 0;
   for (let i = 0; i < png.data.length; i += 4) {
     const a = png.data[i + 3];
-    if (a < 40) continue; // ignore les pixels (quasi) transparents
+    if (a < 40) continue; // skip (nearly) transparent pixels
     R += png.data[i] * a; G += png.data[i + 1] * a; B += png.data[i + 2] * a; A += a;
   }
   if (A === 0) return null;
@@ -83,9 +83,9 @@ function iconColor(buf) {
 }
 
 /**
- * FLUIDES : la couleur de fluide officielle du jeu (game-db) prime sur l'icône —
- * beaucoup d'icônes de liquides sont des gouttes grises (ex. l'eau) sans teinte
- * exploitable. On passe la couleur officielle dans le même pipeline (boost + bornes).
+ * FLUIDS: the game's official fluid color (game-db) takes precedence over the icon —
+ * many liquid icons are grey droplets (e.g. water) with no usable hue.
+ * The official color goes through the same pipeline (boost + clamping).
  */
 function applyFluidOverride(colors) {
   const src = fs.readFileSync(path.join(__dirname, "..", "src", "model", "game-db.ts"), "utf8");
@@ -129,11 +129,11 @@ async function main() {
   const src = fs.readFileSync(path.join(__dirname, "..", "src", "model", "game-db.ts"), "utf8");
   const db = JSON.parse(src.slice(src.indexOf('{"items"'), src.lastIndexOf("}") + 1));
   const items = Object.values(db.items);
-  console.log(`[icons] ${items.length} items à traiter`);
+  console.log(`[icons] ${items.length} items to process`);
 
-  // 1) Résoudre les URLs de vignettes par lots (API MediaWiki, 50 titres max).
-  // NB : MediaWiki renvoie les titres avec ESPACES (pas underscores) → on indexe
-  // et compare en espaces.
+  // 1) Resolve thumbnail URLs in batches (MediaWiki API, 50 titles max).
+  // NB: MediaWiki returns titles with SPACES (not underscores) → we index
+  // and compare using spaces.
   const fileToSlug = {}; // "Iron Plate.png" -> slug
   const titleOf = (it) => `File:${it.nom.replace(/ /g, "_")}.png`;
   for (const it of items) fileToSlug[`${it.nom}.png`] = it.id;
@@ -151,12 +151,12 @@ async function main() {
       const slug = fileToSlug[file];
       if (slug) thumbBySlug[slug] = p.imageinfo[0].thumburl;
     }
-    process.stdout.write(`\r[icons] résolu ${Object.keys(thumbBySlug).length}/${items.length}`);
+    process.stdout.write(`\r[icons] resolved ${Object.keys(thumbBySlug).length}/${items.length}`);
     await sleep(200);
   }
   console.log("");
 
-  // 2) Télécharger + base64 + couleur dérivée de l'icône.
+  // 2) Download + base64 + color derived from the icon.
   const icons = {};
   const colors = {};
   let done = 0, bytes = 0;
@@ -171,31 +171,31 @@ async function main() {
       if (col) colors[it.id] = col;
       bytes += buf.length;
       done++;
-      process.stdout.write(`\r[icons] téléchargé ${done}`);
+      process.stdout.write(`\r[icons] downloaded ${done}`);
       await sleep(80);
-    } catch { /* ignore, fallback texte */ }
+    } catch { /* ignore, text fallback */ }
   }
   console.log("");
 
   const missing = items.filter((it) => !icons[it.id]).map((it) => it.id);
   applyFluidOverride(colors);
   writeIcons(icons, colors);
-  console.log(`[icons] ${done}/${items.length} icônes, ${(bytes / 1024 / 1024).toFixed(2)} Mo bruts (base64 ~+33%)`);
-  if (missing.length) console.log(`[icons] sans icône (${missing.length}) :`, missing.slice(0, 20).join(", ") + (missing.length > 20 ? " …" : ""));
+  console.log(`[icons] ${done}/${items.length} icons, ${(bytes / 1024 / 1024).toFixed(2)} MB raw (base64 ~+33%)`);
+  if (missing.length) console.log(`[icons] no icon (${missing.length}):`, missing.slice(0, 20).join(", ") + (missing.length > 20 ? " …" : ""));
 }
 
 const GAME_ICONS = path.join(__dirname, "..", "src", "model", "game-icons.ts");
 function writeIcons(icons, colors) {
-  fs.writeFileSync(GAME_ICONS, `// GÉNÉRÉ par _data/fetch-icons.cjs depuis satisfactory.wiki.gg — ne pas éditer à la main.
-// Icônes des items (vignettes ${WIDTH}px) en data-URI base64, indexées par slug.
+  fs.writeFileSync(GAME_ICONS, `// GENERATED by _data/fetch-icons.cjs from satisfactory.wiki.gg — do not edit by hand.
+// Item icons (${WIDTH}px thumbnails) as base64 data-URIs, indexed by slug.
 export const ICONS: Record<string, string> = ${JSON.stringify(icons)};
 
-// Couleur de chaque item, dérivée de son icône (teinte réelle + saturation) — pour les arêtes.
+// Color of each item, derived from its icon (real hue + saturation) — used for edges.
 export const ICON_COLORS: Record<string, string> = ${JSON.stringify(colors)};
 `);
 }
 
-/** Recalcule ICON_COLORS depuis les icônes DÉJÀ embarquées (pas de réseau) : `node fetch-icons.cjs --recolor`. */
+/** Recomputes ICON_COLORS from the ALREADY embedded icons (no network): `node fetch-icons.cjs --recolor`. */
 function recolor() {
   const m = fs.readFileSync(GAME_ICONS, "utf8");
   const icons = JSON.parse(m.slice(m.indexOf("{"), m.indexOf("};") + 1));
@@ -206,7 +206,7 @@ function recolor() {
   }
   const nf = applyFluidOverride(colors);
   writeIcons(icons, colors);
-  console.log(`[recolor] ${Object.keys(colors).length} couleurs recalculées (offline), dont ${nf} fluides depuis la couleur officielle.`);
+  console.log(`[recolor] ${Object.keys(colors).length} colors recomputed (offline), including ${nf} fluids from the official color.`);
 }
 
 if (process.argv.includes("--recolor")) recolor();

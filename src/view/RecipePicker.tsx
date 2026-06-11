@@ -4,19 +4,19 @@ import type { Db, Recipe } from "../model/types";
 import { ICONS } from "../model/game-icons";
 
 /**
- * Sélecteur de recette : recherche + groupes.
+ * Recipe picker: search + groups.
  *
- * Remplace le <select> plat de 276 entrées (alternatives noyées dans l'ordre
- * alphabétique). Organisation :
- *  - les recettes STANDARD d'abord, groupées par machine (Smelter, Constructor…) ;
- *  - les ALTERNATIVES dans une section dédiée à la fin (badge ⭐) ;
- *  - chaque ligne : icône de l'item produit + nom + machine.
- * Recherche : chaque mot tapé doit apparaître dans « nom + machine » (insensible
- * à la casse). Clavier : ↑/↓ navigue, Entrée choisit, Échap ferme.
+ * Replaces the flat 276-entry <select> (alternates drowned in alphabetical
+ * order). Layout:
+ *  - STANDARD recipes first, grouped by machine (Smelter, Constructor…);
+ *  - ALTERNATE recipes in a dedicated section at the end (⭐ badge);
+ *  - each row: icon of the produced item + name + machine.
+ * Search: every typed word must appear in "name + machine" (case-insensitive).
+ * Keyboard: ↑/↓ navigates, Enter picks, Esc closes.
  */
 export interface RecipePickerProps {
   db: Db;
-  /** Ne proposer que les recettes consommant un de ces items (connexion lâchée dans le vide). */
+  /** Only offer recipes consuming one of these items (connection dropped into empty space). */
   consumesOneOf?: string[];
   onPick: (recipeId: string) => void;
   onClose: () => void;
@@ -26,7 +26,7 @@ export interface RecipePickerProps {
 
 interface Row {
   recipe: Recipe;
-  /** Id de l'item produit principal (pour l'icône). */
+  /** Id of the main produced item (for the icon). */
   product: string;
 }
 
@@ -43,7 +43,7 @@ function buildSections(db: Db, consumesOneOf?: string[]): Section[] {
   const std = all.filter((r) => !r.alternative);
   const alt = all.filter((r) => r.alternative);
 
-  // Standards groupés par machine (machines triées, recettes triées dans chaque groupe).
+  // Standard recipes grouped by machine (machines sorted, recipes sorted within each group).
   const byMachine = new Map<string, Row[]>();
   for (const r of std) {
     const rows = byMachine.get(r.machine) ?? [];
@@ -69,15 +69,15 @@ function buildSections(db: Db, consumesOneOf?: string[]): Section[] {
 }
 
 /**
- * Sélecteur de NOTE à importer (mêmes styles que le picker de recettes) :
- * liste des notes du vault contenant un bloc ```satisfactory, filtrable.
+ * Picker for a NOTE to import (same styles as the recipe picker):
+ * filterable list of vault notes containing a ```satisfactory block.
  */
 export function NotePicker({
   notes,
   onPick,
   onClose,
 }: {
-  /** Noms de base des notes importables ; null = chargement en cours. */
+  /** Basenames of the importable notes; null = still loading. */
   notes: string[] | null;
   onPick: (basename: string) => void;
   onClose: () => void;
@@ -134,7 +134,7 @@ export function RecipePicker({ db, consumesOneOf, onPick, onClose, placeholder, 
 
   const sections = useMemo(() => buildSections(db, consumesOneOf), [db, consumesOneOf]);
 
-  // Filtre : chaque mot de la requête doit matcher nom ou machine.
+  // Filter: every query word must match name or machine.
   const filtered = useMemo(() => {
     const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
     if (tokens.length === 0) return sections;
@@ -149,12 +149,12 @@ export function RecipePicker({ db, consumesOneOf, onPick, onClose, placeholder, 
       .filter((s) => s.rows.length > 0);
   }, [sections, query]);
 
-  // Liste aplatie pour la navigation clavier.
+  // Flattened list for keyboard navigation.
   const flat = useMemo(() => filtered.flatMap((s) => s.rows), [filtered]);
   const activeId = flat[Math.min(active, flat.length - 1)]?.recipe.id;
 
   useEffect(() => setActive(0), [query]);
-  // Garde la ligne active visible au défilement clavier.
+  // Keep the active row visible while navigating with the keyboard.
   useEffect(() => {
     listRef.current
       ?.querySelector(`[data-rid="${activeId}"]`)
@@ -162,7 +162,7 @@ export function RecipePicker({ db, consumesOneOf, onPick, onClose, placeholder, 
   }, [activeId]);
 
   const onKeyDown = (e: React.KeyboardEvent) => {
-    // Ne pas laisser remonter vers les raccourcis du graphe / d'Obsidian.
+    // Don't let the event bubble up to graph / Obsidian shortcuts.
     e.stopPropagation();
     if (e.key === "Escape") onClose();
     else if (e.key === "ArrowDown") {

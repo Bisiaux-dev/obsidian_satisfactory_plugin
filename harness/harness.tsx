@@ -1,13 +1,14 @@
 /**
- * Banc d'essai web (hors Obsidian) : monte le VRAI GraphView + le modèle/diagnostic
- * + le sérialiseur avec la chaîne alumine, et affiche la scène `.md` sérialisée en
- * direct. onSceneChange remonte GraphView (via `key`) → reproduit fidèlement le
- * comportement du plugin (le write-back déclenche un re-render complet).
+ * Web test bench (outside Obsidian): mounts the REAL GraphView + the model/diagnostic
+ * + the serializer with the bundled game database (iron + plastic chain, same as
+ * EXAMPLE.md), and displays the serialized `.md` scene live. onSceneChange remounts
+ * GraphView (via `key`) → faithfully reproduces the plugin's behavior (the
+ * write-back triggers a full re-render).
  */
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { GraphView } from "../src/view/GraphView";
-import { DEMO_DB } from "../src/model/db";
+import { GAME_DB } from "../src/model/game-db";
 import { diagnose } from "../src/model/diagnostic";
 import { serializeScene } from "../src/serialize";
 import type { Scene } from "../src/model/types";
@@ -18,29 +19,26 @@ const style = document.createElement("style");
 style.textContent = `${xyflowCss}\n${appCss}`;
 document.head.appendChild(style);
 
+// Same scene as EXAMPLE.md: heavy oil residue is orphaned (expected 🔴),
+// the ore miner overproduces (expected 🟡).
 const INITIAL: Scene = {
   noeuds: [
-    { id: "bauxite", recette: "extraction-bauxite", machines: 1, pos: [20, 60] },
-    { id: "eau", recette: "pompe-eau", machines: 1, pos: [20, 230] },
-    { id: "charbon", recette: "extraction-charbon", machines: 2, pos: [20, 400] },
-    { id: "A", recette: "solution-alumine", machines: 2, pos: [280, 110], calque: "lingots" },
-    { id: "B", recette: "ferraille-alu", machines: 2, pos: [560, 110], calque: "lingots" },
-    { id: "C", recette: "lingot-alu", machines: 2, pos: [840, 140], calque: "lingots" },
-    { id: "D", recette: "plaque-alu", machines: 2, pos: [1140, 140], calque: "plaques" },
+    { id: "ore", recette: "", machines: 1, pos: [20, 60], machine: "Miner", intrants: [], extrants: [{ item: "iron-ore", debit: 60 }] },
+    { id: "ingot", recette: "recipe-ingotiron-c", machines: 1, pos: [320, 60], calque: "smelting" },
+    { id: "plate", recette: "recipe-ironplate-c", machines: 1, pos: [620, 60], calque: "smelting" },
+    { id: "oil", recette: "", machines: 1, pos: [20, 360], machine: "Pump", intrants: [], extrants: [{ item: "crude-oil", debit: 30 }] },
+    { id: "plastic", recette: "recipe-plastic-c", machines: 1, pos: [320, 360], calque: "petro" },
   ],
   liens: [
-    { de: "bauxite", vers: "A", produit: "bauxite", debit: 120 },
-    { de: "eau", vers: "A", produit: "eau", debit: 60 },
-    { de: "charbon", vers: "B", produit: "charbon", debit: 120 },
-    { de: "A", vers: "B", produit: "solution-alumine", debit: 240 },
-    { de: "B", vers: "A", produit: "eau", debit: 120, boucle: true },
-    { de: "B", vers: "C", produit: "ferraille", debit: 240 },
-    { de: "C", vers: "D", produit: "lingot-alu", debit: 60 },
-    { de: "D", vers: "SINK", produit: "plaque-alu", debit: 30 },
+    { de: "ore", vers: "ingot", produit: "iron-ore", debit: 30 },
+    { de: "ingot", vers: "plate", produit: "iron-ingot", debit: 30 },
+    { de: "plate", vers: "SINK", produit: "iron-plate", debit: 20 },
+    { de: "oil", vers: "plastic", produit: "crude-oil", debit: 30 },
+    { de: "plastic", vers: "SINK", produit: "plastic", debit: 20 },
   ],
   calques: [
-    { id: "lingots", nom: "Lingots d'alu", icone: "🟦", couleur: "#3b82f6" },
-    { id: "plaques", nom: "Plaques", icone: "🟧", couleur: "#f59e0b" },
+    { id: "smelting", nom: "Smelting", icone: "🔥", couleur: "#f59e0b" },
+    { id: "petro", nom: "Petrochem", icone: "🛢️", couleur: "#3b82f6" },
   ],
 };
 
@@ -51,18 +49,18 @@ function Harness() {
     setScene(s);
     setVer((v) => v + 1);
   };
-  const diag = diagnose(scene, DEMO_DB);
+  const diag = diagnose(scene, GAME_DB);
 
   return (
     <div style={{ display: "flex", height: "100vh", gap: 8, padding: 8, boxSizing: "border-box" }}>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <GraphView key={ver} scene={scene} db={DEMO_DB} diagnostic={diag} onSceneChange={update} />
+        <GraphView key={ver} scene={scene} db={GAME_DB} diagnostic={diag} onSceneChange={update} />
       </div>
       <div style={{ width: 360, display: "flex", flexDirection: "column", gap: 6 }}>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           <button data-test="reset" onClick={() => update(INITIAL)}>Reset</button>
           <span style={{ fontSize: 12, color: "#8a8d91" }}>
-            statut A : <b data-test="statusA" style={{ color: "#fff" }}>{diag.status["A"]}</b>
+            status plastic: <b data-test="statusPlastic" style={{ color: "#fff" }}>{diag.status["plastic"]}</b>
           </span>
         </div>
         <pre

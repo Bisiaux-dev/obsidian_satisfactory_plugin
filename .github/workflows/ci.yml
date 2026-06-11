@@ -1,0 +1,41 @@
+name: CI
+
+# Typecheck + build + runtime-dependency audit on every push and pull request
+# to main. Safety gate before any release.
+#
+# Note: the e2e suite (_test/e2e.cjs) drives a real Obsidian instance over the
+# Chrome DevTools Protocol and cannot run headless on CI — it is run locally
+# before tagging a release.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build (typecheck + bundle)
+        run: npm run build
+
+      # Audit focused on RUNTIME dependencies (what actually ships to users).
+      # Fails if a high/critical vulnerability touches them.
+      - name: Audit runtime dependencies
+        run: npm audit --omit=dev --audit-level=high

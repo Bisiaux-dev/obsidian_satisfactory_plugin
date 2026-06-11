@@ -71,13 +71,13 @@ import {
   X,
 } from "lucide-react";
 
-// Gabarit estimé d'un nœud (fallback si dimensions pas encore mesurées) + marges du calque.
+// Estimated node footprint (fallback when dimensions are not yet measured) + layer margins.
 const NODE_W = 210;
 const NODE_H = 150;
 const GROUP_PAD = 22;
 const GROUP_HEAD = 30;
 
-/** Nœud représentant l'AWESOME Sink (débouché terminal d'un surplus). */
+/** Node representing the AWESOME Sink (terminal outlet for a surplus). */
 function SinkNode() {
   return (
     <div className="sfy-node sfy-goal">
@@ -99,10 +99,10 @@ const NODE_TYPES = {
 const EDGE_TYPES = { flow: FlowEdge };
 
 /**
- * Viewport (caméra) persisté PAR NOTE, au niveau module — survit aux remontages
- * provoqués par le write-back (chaque écriture `.md` re-rend le bloc). On restaure
- * la caméra au lieu de refaire `fitView` → plus de saut/clignotement à chaque
- * changement. Le module du plugin reste chargé tant qu'Obsidian tourne.
+ * Viewport (camera) persisted PER NOTE, at module level — survives the remounts
+ * caused by the write-back (every `.md` write re-renders the block). We restore
+ * the camera instead of re-running `fitView` → no more jump/flicker on every
+ * change. The plugin module stays loaded as long as Obsidian is running.
  */
 const viewportStore = new Map<string, Viewport>();
 
@@ -110,22 +110,22 @@ interface Props {
   scene: Scene;
   db: Db;
   diagnostic: Diagnostic;
-  /** Chemin de la note — clé de persistance de la caméra. */
+  /** Path of the note — persistence key for the camera. */
   sourcePath?: string;
-  /** Incrémenté par le plugin sur édition EXTERNE du `.md` → re-synchronise
-   * l'état React Flow (la racine étant persistante, il n'y a pas de remontage). */
+  /** Incremented by the plugin on EXTERNAL edits of the `.md` → re-syncs the
+   * React Flow state (the root being persistent, there is no remount). */
   syncToken?: number;
-  /** Appelé au drop d'un nœud avec la scène mise à jour (write-back). */
+  /** Called on node drop with the updated scene (write-back). */
   onSceneChange?: (scene: Scene) => void;
-  /** Notification utilisateur (succès/refus de connexion…). */
+  /** User notification (connection success/refusal…). */
   onNotice?: (message: string) => void;
-  /** Réglage : forcer des machines entières à l'édition. */
+  /** Setting: force whole machine counts when editing. */
   wholeMachines?: boolean;
-  /** Liste (async) des notes du vault importables (contenant un bloc satisfactory). */
+  /** (Async) list of importable vault notes (containing a satisfactory block). */
   listImportNotes?: () => Promise<string[]>;
 }
 
-/** Renvoie une copie de la scène avec la position d'un nœud mise à jour. */
+/** Returns a copy of the scene with one node's position updated. */
 function withNodePosition(scene: Scene, id: string, x: number, y: number): Scene {
   return {
     ...scene,
@@ -136,15 +136,15 @@ function withNodePosition(scene: Scene, id: string, x: number, y: number): Scene
 }
 
 /**
- * Nœuds métier : positions ABSOLUES, librement déplaçables (comme la maquette).
- * Les calques ne sont PAS des parents ici — ils sont dérivés des positions live
- * (cf. {@link computeGroupNodes}), donc le déplacement des nœuds n'est pas contraint.
+ * Business nodes: ABSOLUTE positions, freely movable (like the mockup).
+ * Layers are NOT parents here — they are derived from the live positions
+ * (cf. {@link computeGroupNodes}), so node movement is unconstrained.
  */
 function buildBusinessNodes(scene: Scene, db: Db, diag: Diagnostic, wholeMachines = false): RFNode[] {
   const nodes: RFNode[] = [];
   let maxX = 0;
 
-  // Calques repliés : leurs membres sont masqués et remplacés par un nœud module.
+  // Collapsed layers: their members are hidden and replaced by a module node.
   const collapsed = new Set(scene.calques.filter((c) => c.replie).map((c) => c.id));
   const memberPos = new Map<string, { x: number; y: number }[]>();
 
@@ -156,7 +156,7 @@ function buildBusinessNodes(scene: Scene, db: Db, diag: Diagnostic, wholeMachine
     const issues = diag.issues.filter((x) => x.nodeId === node.id).map((x) => x.message);
     const status = diag.status[node.id] ?? "ok";
 
-    // Membre d'un calque replié → masqué (mémorise sa position pour le module).
+    // Member of a collapsed layer → hidden (remember its position for the module).
     if (node.calque && collapsed.has(node.calque)) {
       const arr = memberPos.get(node.calque) ?? [];
       arr.push({ x: pos[0], y: pos[1] });
@@ -164,7 +164,7 @@ function buildBusinessNodes(scene: Scene, db: Db, diag: Diagnostic, wholeMachine
       return;
     }
 
-    // Nœud ressource brute : aucun intrant.
+    // Raw resource node: no inputs.
     if (ports.intrants.length === 0) {
       const out = ports.extrants[0];
       const item = db.items[out?.item];
@@ -212,7 +212,7 @@ function buildBusinessNodes(scene: Scene, db: Db, diag: Diagnostic, wholeMachine
     });
   });
 
-  // Nœud module pour chaque calque replié (positionné au coin haut-gauche des membres).
+  // Module node for each collapsed layer (positioned at the members' top-left corner).
   for (const layer of scene.calques) {
     if (!collapsed.has(layer.id)) continue;
     const ps = memberPos.get(layer.id);
@@ -223,7 +223,7 @@ function buildBusinessNodes(scene: Scene, db: Db, diag: Diagnostic, wholeMachine
       type: "module",
       position: { x: Math.min(...ps.map((p) => p.x)), y: Math.min(...ps.map((p) => p.y)) },
       deletable: false,
-      zIndex: 10, // au-dessus des autres nœuds (le module est opaque → pas de superposition visuelle)
+      zIndex: 10, // above the other nodes (the module is opaque → no visual overlap)
       data: {
         layerId: layer.id,
         nom: layer.nom,
@@ -236,7 +236,7 @@ function buildBusinessNodes(scene: Scene, db: Db, diag: Diagnostic, wholeMachine
     });
   }
 
-  // Sink présent dès qu'il y a des nœuds (cible de routage d'un surplus / sous-produit).
+  // Sink is present as soon as there are nodes (routing target for a surplus / by-product).
   if (scene.noeuds.length > 0) {
     nodes.push({
       id: SINK,
@@ -251,17 +251,17 @@ function buildBusinessNodes(scene: Scene, db: Db, diag: Diagnostic, wholeMachine
 }
 
 /**
- * Boîtes de calque DÉRIVÉES des positions live des nœuds membres — recalculées à
- * chaque changement (= le `redraw()` de la maquette). Non déplaçables ni
- * sélectionnables : on déplace les NŒUDS, la boîte suit. Placées en tête du
- * tableau pour rendre derrière les nœuds.
+ * Layer boxes DERIVED from the live positions of member nodes — recomputed on
+ * every change (= the mockup's `redraw()`). Not movable nor selectable: you
+ * move the NODES, the box follows. Placed at the head of the array so they
+ * render behind the nodes.
  */
 function computeGroupNodes(scene: Scene, liveNodes: RFNode[]): RFNode[] {
   const byId = new Map(liveNodes.map((n) => [n.id, n]));
   const groups: RFNode[] = [];
 
   for (const layer of scene.calques) {
-    if (layer.replie) continue; // calque replié → rendu par un nœud module, pas une boîte
+    if (layer.replie) continue; // collapsed layer → rendered as a module node, not a box
     const members = scene.noeuds
       .filter((n) => n.calque === layer.id)
       .map((n) => byId.get(n.id))
@@ -291,7 +291,7 @@ function computeGroupNodes(scene: Scene, liveNodes: RFNode[]): RFNode[] {
 }
 
 function buildEdges(scene: Scene, db: Db): Edge[] {
-  // membre d'un calque replié → son arête est reroutée vers le nœud module.
+  // member of a collapsed layer → its edge is rerouted to the module node.
   const collapsedOf = new Map<string, string>();
   for (const layer of scene.calques) {
     if (!layer.replie) continue;
@@ -299,17 +299,17 @@ function buildEdges(scene: Scene, db: Db): Edge[] {
   }
 
   const edges: Edge[] = [];
-  // Compteur de flèches parallèles (même source→cible) pour décaler leurs étiquettes.
+  // Counter of parallel arrows (same source→target) to offset their labels.
   const pairCount = new Map<string, number>();
 
   scene.liens.forEach((link, i) => {
     const source = collapsedOf.get(link.de) ?? link.de;
     const target = collapsedOf.get(link.vers) ?? link.vers;
-    if (source === target) return; // lien interne à un calque replié → masqué
+    if (source === target) return; // link internal to a collapsed layer → hidden
 
     const item = db.items[link.produit];
-    // Couleur du produit : teinte vive dérivée de l'icône (ICON_COLORS) en priorité,
-    // sinon couleur de la DB, sinon gris neutre.
+    // Product color: vivid hue derived from the icon (ICON_COLORS) first,
+    // else the DB color, else neutral gray.
     const color = ICON_COLORS[link.produit] ?? item?.couleur ?? "#9ca3af";
     const rerouted = source !== link.de || target !== link.vers;
     const pairKey = `${source}->${target}`;
@@ -337,7 +337,7 @@ function buildEdges(scene: Scene, db: Db): Edge[] {
       },
     });
   });
-  // Renseigne le nombre total de parallèles par paire (pour centrer le décalage).
+  // Fill in the total number of parallels per pair (to center the offset).
   for (const e of edges) {
     const d = e.data as { pairKey: string; labelCount?: number };
     d.labelCount = pairCount.get(d.pairKey) ?? 1;
@@ -349,15 +349,15 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
   const initialNodes = useMemo(() => buildBusinessNodes(scene, db, diagnostic, wholeMachines), [scene, db, diagnostic, wholeMachines]);
   const initialEdges = useMemo(() => buildEdges(scene, db), [scene, db]);
 
-  // --- Persistance de la caméra entre remontages (anti-flicker / anti-reset) ---
+  // --- Camera persistence across remounts (anti-flicker / anti-reset) ---
   const camKey = sourcePath || "default";
   const savedViewport = viewportStore.get(camKey);
   const instRef = useRef<ReactFlowInstance | null>(null);
   const persistViewport = useCallback(() => {
     if (instRef.current) viewportStore.set(camKey, instRef.current.getViewport());
   }, [camKey]);
-  // Historique pour annuler/refaire (Ctrl+Z). La source de vérité reste le `.md` ;
-  // on empile les scènes précédentes (refs → survivent aux re-rendus sans remontage).
+  // Undo/redo history (Ctrl+Z). The source of truth remains the `.md`;
+  // we stack the previous scenes (refs → survive re-renders without remounting).
   const undoStack = useRef<Scene[]>([]);
   const redoStack = useRef<Scene[]>([]);
   const restore = useCallback(
@@ -367,7 +367,7 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
     },
     [persistViewport, onSceneChange],
   );
-  // Mutation + write-back : empile l'état courant pour l'annulation.
+  // Mutation + write-back: pushes the current state for undo.
   const commit = useCallback(
     (next: Scene) => {
       undoStack.current.push(scene);
@@ -399,9 +399,9 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
-  // Re-synchronise depuis le `.md` UNIQUEMENT sur édition externe (syncToken
-  // bumpé par le plugin). On saute le 1er montage (useNodesState a déjà semé)
-  // et nos propres write-backs (qui ne bumpent pas syncToken).
+  // Re-syncs from the `.md` ONLY on external edits (syncToken bumped by the
+  // plugin). We skip the first mount (useNodesState already seeded) and our
+  // own write-backs (which do not bump syncToken).
   const firstSync = useRef(true);
   const selectedRef = useRef<string[]>([]);
   useEffect(() => {
@@ -409,24 +409,24 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
       firstSync.current = false;
       return;
     }
-    // Reconstruit en PRÉSERVANT la sélection (sinon le panneau d'édition se ferme
-    // après chaque write-back, la reconstruction effaçant l'état `selected`).
+    // Rebuild while PRESERVING the selection (otherwise the edit panel closes
+    // after every write-back, the rebuild wiping the `selected` state).
     const sel = new Set(selectedRef.current);
     setNodes(buildBusinessNodes(scene, db, diagnostic, wholeMachines).map((n) => (sel.has(n.id) ? { ...n, selected: true } : n)));
     setEdges(buildEdges(scene, db));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [syncToken]);
 
-  // Calques recalculés à chaque rendu depuis les positions live → la boîte suit les nœuds.
+  // Layers recomputed on every render from the live positions → the box follows the nodes.
   const groupNodes = useMemo(() => computeGroupNodes(scene, nodes), [scene, nodes]);
   const allNodes = useMemo(() => [...groupNodes, ...nodes], [groupNodes, nodes]);
 
-  // Write-back au DROP uniquement (pas à chaque pixel), cf. cahier des charges.
+  // Write-back on DROP only (not on every pixel), per the spec.
   const onNodeDragStop = useCallback(
     (_e: MouseEvent | TouchEvent, node: RFNode) => {
       if (!onSceneChange) return;
 
-      // Déplacer un calque replié (nœud module) → décale tous ses membres.
+      // Moving a collapsed layer (module node) → shifts all of its members.
       if (node.id.startsWith("module-")) {
         const layerId = node.id.slice("module-".length);
         const members = scene.noeuds.filter((n) => n.calque === layerId && n.pos);
@@ -448,17 +448,17 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
       }
 
       const target = scene.noeuds.find((n) => n.id === node.id);
-      if (!target) return; // nœud synthétique (calque, Sink) → pas dans la scène
+      if (!target) return; // synthetic node (layer, Sink) → not in the scene
       const nx = Math.round(node.position.x);
       const ny = Math.round(node.position.y);
-      if (target.pos && target.pos[0] === nx && target.pos[1] === ny) return; // pas bougé
+      if (target.pos && target.pos[0] === nx && target.pos[1] === ny) return; // did not move
       commit(withNodePosition(scene, node.id, nx, ny));
     },
     [scene, onSceneChange, commit],
   );
 
-  // Relier deux nœuds → nouveau lien (produit choisi automatiquement).
-  // Feedback explicite : succès = quoi a été routé, refus = pourquoi.
+  // Connecting two nodes → new link (product chosen automatically).
+  // Explicit feedback: success = what was routed, refusal = why.
   const onConnect = useCallback(
     (c: Connection) => {
       if (!onSceneChange) return;
@@ -475,8 +475,8 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
     [scene, db, onSceneChange, commit, onNotice],
   );
 
-  // Suppression (Suppr) : UN SEUL handler pour nœuds + liens → un seul write-back
-  // (évite la course entre onNodesDelete et onEdgesDelete sur une scène figée).
+  // Deletion (Del): ONE single handler for nodes + links → a single write-back
+  // (avoids the race between onNodesDelete and onEdgesDelete on a frozen scene).
   const onDelete = useCallback(
     ({ nodes: dn, edges: de }: { nodes: RFNode[]; edges: Edge[] }) => {
       if (!onSceneChange) return;
@@ -495,11 +495,11 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
     [scene, onSceneChange, commit],
   );
 
-  // --- Picker de recettes (3 contextes d'ouverture) ---
-  //  - 'add'     : bouton « + Nœud » → nouveau nœud placé sous les autres ;
-  //  - 'ctx-add' : clic droit sur le fond → nouveau nœud À CET ENDROIT ;
-  //  - 'connect' : connexion lâchée dans le vide → recettes CONSOMMANT un produit
-  //                du nœud source, nœud créé au point de drop + lien auto.
+  // --- Recipe picker (3 opening contexts) ---
+  //  - 'add'     : "+ Node" button → new node placed below the others;
+  //  - 'ctx-add' : right-click on the background → new node AT THAT SPOT;
+  //  - 'connect' : connection dropped in the void → recipes CONSUMING a product
+  //                of the source node, node created at the drop point + auto link.
   type PickerState =
     | { mode: "add" }
     | { mode: "ctx-add"; flowPos: [number, number]; panelPos: [number, number] }
@@ -511,8 +511,8 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
       if (!onSceneChange || !picker) return;
       setPicker(null);
       if (picker.mode === "connect") {
-        // Crée le nœud au point de drop puis route automatiquement le produit
-        // (connect() choisit l'item que la nouvelle recette consomme).
+        // Creates the node at the drop point then routes the product automatically
+        // (connect() picks the item the new recipe consumes).
         const id = nextNodeId(scene);
         const withNode: Scene = {
           ...scene,
@@ -538,8 +538,8 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
     [scene, db, picker, onSceneChange, commit, onNotice],
   );
 
-  // --- Import d'une autre note (usine) : sélecteur de notes du vault ---
-  // null = fermé ; sinon position optionnelle (clic droit) + liste chargée async.
+  // --- Importing another note (factory): vault note picker ---
+  // null = closed; otherwise optional position (right-click) + list loaded async.
   const [importPicker, setImportPicker] = useState<{ flowPos?: [number, number]; panelPos?: [number, number] } | null>(null);
   const [importNotes, setImportNotes] = useState<string[] | null>(null);
   const openImportPicker = useCallback(
@@ -567,13 +567,13 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
     [scene, importPicker, onSceneChange, commit, onNotice],
   );
 
-  // Connexion lâchée dans le vide → picker filtré sur les consommateurs.
+  // Connection dropped in the void → picker filtered to consumers.
   const wrapperRef = useRef<HTMLDivElement>(null);
   const onConnectEnd = useCallback(
     (event: MouseEvent | TouchEvent, state: { isValid: boolean | null; fromNode: { id: string } | null }) => {
       if (!onSceneChange || state.isValid || !state.fromNode) return;
       const src = scene.noeuds.find((n) => n.id === state.fromNode!.id);
-      if (!src) return; // Sink / module / calque : pas de création depuis eux
+      if (!src) return; // Sink / module / layer: no creation from those
       const outputs = nodePorts(src, db).extrants.map((p) => p.item);
       if (outputs.length === 0) return;
       const pt = "clientX" in event ? event : (event as TouchEvent).changedTouches[0];
@@ -591,15 +591,15 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
     [scene, db, onSceneChange],
   );
 
-  // Auto-layout gauche→droite (dagre) → espace tout proprement.
+  // Left→right auto-layout (dagre) → spaces everything out cleanly.
   const onTidy = useCallback(() => {
     if (!onSceneChange) return;
     commit(autoLayout(scene, db));
     onNotice?.("Graph tidied.");
   }, [scene, db, onSceneChange, commit, onNotice]);
 
-  // --- Menu contextuel (clic droit : fond / nœud / lien) ---
-  // Coordonnées RELATIVES au conteneur du graphe (le menu y est positionné en absolu).
+  // --- Context menu (right-click: background / node / link) ---
+  // Coordinates RELATIVE to the graph container (the menu is absolutely positioned in it).
   type CtxState =
     | { kind: "pane"; x: number; y: number; flowPos: [number, number] }
     | { kind: "node"; x: number; y: number; id: string }
@@ -622,7 +622,7 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
   const onNodeContextMenu = useCallback(
     (e: React.MouseEvent, node: RFNode) => {
       e.preventDefault();
-      // Menu seulement pour les nœuds de la scène (pas Sink / module / boîte de calque).
+      // Menu only for scene nodes (not Sink / module / layer box).
       if (!scene.noeuds.some((n) => n.id === node.id)) return;
       setCtx({ kind: "node", ...ctxPos(e), id: node.id });
     },
@@ -637,7 +637,7 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
     },
     [ctxPos],
   );
-  // Fermeture du menu : clic n'importe où.
+  // Closing the menu: click anywhere.
   useEffect(() => {
     if (!ctx) return;
     const close = () => setCtx(null);
@@ -645,7 +645,7 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
     return () => document.removeEventListener("click", close);
   }, [ctx]);
 
-  // --- Sélection multiple (Shift+glisser = boîte, Shift/Ctrl+clic = ajouter) ---
+  // --- Multi-selection (Shift+drag = box, Shift/Ctrl+click = add) ---
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const onSelectionChange = useCallback(
     ({ nodes: sel }: { nodes: RFNode[] }) => {
@@ -657,9 +657,9 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
   );
   const sceneSelected = selectedIds.filter((id) => scene.noeuds.some((n) => n.id === id));
 
-  // Panneau d'édition : ouvert SEULEMENT au double-clic sur un nœud (pas au simple
-  // clic, qui ne fait que sélectionner). Le double-clic sur une valeur (Inline)
-  // ne remonte pas jusqu'ici (stopPropagation) → édition inline sans ouvrir le panneau.
+  // Edit panel: opened ONLY on node double-click (not on single click, which
+  // only selects). A double-click on a value (Inline) does not bubble up here
+  // (stopPropagation) → inline editing without opening the panel.
   const [editorNodeId, setEditorNodeId] = useState<string | null>(null);
   const onNodeDoubleClick = useCallback(
     (_e: React.MouseEvent, node: RFNode) => {
@@ -674,18 +674,18 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
     },
     [scene, editorNodeId, commit],
   );
-  // Édition inline (double-clic sur une info du nœud) → mutation par id.
+  // Inline editing (double-click on a node info) → mutation by id.
   const editById = useCallback(
     (id: string, patch: NodePatch) => commit(updateNode(scene, id, patch)),
     [scene, commit],
   );
-  // Double-clic sur une flèche → bascule son bout (➤ ↔ ♻ boucle).
+  // Double-click on an arrow → toggles its end (➤ ↔ ♻ loop).
   const toggleLink = useCallback(
     (de: string, vers: string, produit: string) => commit(toggleLinkLoop(scene, de, vers, produit)),
     [scene, commit],
   );
-  // Actions calque : replier/déplier + renommer (état d'édition du nom porté ici,
-  // stable — le nœud-calque étant recalculé à chaque rendu).
+  // Layer actions: collapse/expand + rename (name editing state held here,
+  // stable — the layer node being recomputed on every render).
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
   const layerActions = useMemo(
     () => ({
@@ -701,7 +701,7 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
     [scene, commit, editingLayerId],
   );
 
-  // --- Calque depuis la sélection / copier / coller ---
+  // --- Layer from selection / copy / paste ---
   const clipboard = useRef<Clipboard | null>(null);
   const onGroup = useCallback(() => {
     if (sceneSelected.length === 0) {
@@ -725,8 +725,8 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
     onNotice?.(`${newIds.length} node(s) pasted.`);
   }, [scene, commit, onNotice]);
 
-  // Coller À UN ENDROIT (clic droit) : décale le presse-papiers pour que son coin
-  // haut-gauche tombe au point cliqué.
+  // Paste AT A SPOT (right-click): offsets the clipboard so that its top-left
+  // corner lands on the clicked point.
   const onPasteAt = useCallback(
     (flowPos: [number, number]) => {
       const clip = clipboard.current;
@@ -743,7 +743,7 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
     [scene, commit, onNotice],
   );
 
-  // Dupliquer un nœud (clic droit) : copie + colle à côté.
+  // Duplicate a node (right-click): copy + paste next to it.
   const onDuplicate = useCallback(
     (id: string) => {
       const { scene: next } = pasteInto(scene, copyNodes(scene, [id]), [40, 40]);
@@ -752,7 +752,7 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
     [scene, commit],
   );
 
-  // Router le surplus d'un nœud vers le Sink (réutilise la validation de connect()).
+  // Route a node's surplus to the Sink (reuses connect() validation).
   const onRouteToSink = useCallback(
     (id: string) => {
       const res = connect(scene, db, { source: id, target: SINK });
@@ -764,7 +764,7 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
     [scene, db, commit, onNotice],
   );
 
-  // Tout sélectionner (Ctrl+A) — seulement les nœuds de la scène.
+  // Select all (Ctrl+A) — scene nodes only.
   const sceneIds = useMemo(() => new Set(scene.noeuds.map((n) => n.id)), [scene]);
   const onSelectAll = useCallback(() => {
     setNodes((ns) => ns.map((n) => (sceneIds.has(n.id) ? { ...n, selected: true } : n)));
@@ -774,8 +774,8 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
     instRef.current?.fitView({ duration: 250, padding: 0.15 });
   }, []);
 
-  // Optimiseur (aide au besoin F3) : génère une chaîne optimale dans le bloc,
-  // puis recentre la vue sur la nouvelle chaîne (timer annulé au démontage).
+  // Optimizer (helper for need F3): generates an optimal chain in the block,
+  // then re-centers the view on the new chain (timer cleared on unmount).
   const [showOptimizer, setShowOptimizer] = useState(false);
   const fitTimer = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(fitTimer.current), []);
@@ -788,9 +788,9 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
     [commit],
   );
 
-  // --- Raccourcis clavier (actifs quand la souris survole le graphe, pour ne pas
-  // voler les touches d'Obsidian ; capture pour préempter son propre undo).
-  // Ignorés quand le focus est dans un champ de saisie (sauf Échap).
+  // --- Keyboard shortcuts (active while the mouse hovers the graph, so as not
+  // to steal Obsidian's keys; capture phase to preempt its own undo).
+  // Ignored when focus is in an input field (except Escape).
   const [showHelp, setShowHelp] = useState(false);
   const hovered = useRef(false);
   const keymapRef = useRef<(e: KeyboardEvent) => void>(() => {});
@@ -800,7 +800,7 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
     const typing = !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable);
 
     if (e.key === "Escape") {
-      // Échap ferme TOUT (panneaux, picker, menu) — même depuis un champ.
+      // Escape closes EVERYTHING (panels, picker, menu) — even from a field.
       setCtx(null);
       setPicker(null);
       setImportPicker(null);
@@ -821,7 +821,7 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
       else if (k === "a") fire(onSelectAll);
       return;
     }
-    // Touches simples (sans modificateur).
+    // Plain keys (no modifier).
     if (k === "n") { e.preventDefault(); setPicker({ mode: "add" }); }
     else if (k === "g") { e.preventDefault(); onGroup(); }
     else if (k === "f") { e.preventDefault(); onFit(); }
@@ -921,7 +921,7 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
       <Controls showInteractive={false} />
     </ReactFlow>
 
-    {/* Sélecteur de note flottant (Importer une usine ici…). */}
+    {/* Floating note picker (Import a factory here…). */}
     {importPicker?.panelPos ? (
       <div
         className="sfy-float"
@@ -934,7 +934,7 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
       </div>
     ) : null}
 
-    {/* Picker flottant : ajout au clic droit / connexion lâchée dans le vide. */}
+    {/* Floating picker: right-click add / connection dropped in the void. */}
     {picker && picker.mode !== "add" ? (
       <div
         className="sfy-float"
@@ -953,7 +953,7 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
       </div>
     ) : null}
 
-    {/* Menu contextuel (clic droit). */}
+    {/* Context menu (right-click). */}
     {ctx ? (
       <div
         className="sfy-ctx"
@@ -996,7 +996,7 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
       </div>
     ) : null}
 
-    {/* Aide : raccourcis clavier + gestes souris. */}
+    {/* Help: keyboard shortcuts + mouse gestures. */}
     {showHelp ? (
       <div className="sfy-help" onClick={() => setShowHelp(false)}>
         <div className="sfy-help-card" onClick={(e) => e.stopPropagation()}>

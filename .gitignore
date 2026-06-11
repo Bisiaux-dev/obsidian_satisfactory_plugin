@@ -16,8 +16,13 @@ harness/bundle.js
 # editor
 .vscode/
 
-# données brutes du jeu (régénérables via _data/generate.cjs)
+# raw game data (regenerable via _data/generate.cjs)
 _data/data.json
 _data/greeny.json
 _data/docs10/
 _data/*.zip
+
+# internal design docs (kept local, not part of the public repo)
+CAHIER-DES-CHARGES.md
+maquette-visuelle.html
+CLAUDE.md

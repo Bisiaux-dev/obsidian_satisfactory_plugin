@@ -2,7 +2,7 @@ import type { NodeProps } from "@xyflow/react";
 import { ChevronDown } from "lucide-react";
 import { LayerName, useLayerActions } from "./inline";
 
-/** Données d'un calque (groupe encadrant une portion de chaîne). */
+/** Data for a layer (group framing a portion of the chain). */
 export interface GroupNodeData extends Record<string, unknown> {
   layerId: string;
   nom: string;
@@ -11,9 +11,9 @@ export interface GroupNodeData extends Record<string, unknown> {
 }
 
 /**
- * Calque = nœud parent React Flow. Les nœuds membres ont `parentId` pointant
- * vers lui ; déplacer le calque déplace tous ses membres. La taille est portée
- * par `node.style` (width/height), calculée depuis la boîte englobante des membres.
+ * Layer = React Flow parent node. Member nodes have `parentId` pointing
+ * to it; moving the layer moves all its members. The size is carried by
+ * `node.style` (width/height), computed from the members' bounding box.
  */
 export function GroupNode({ data }: NodeProps) {
   const d = data as GroupNodeData;

@@ -1,6 +1,6 @@
 /**
- * Mutations PURES de la scène (édition F7). Chaque fonction renvoie une nouvelle
- * Scene ; le write-back se charge de la réécrire dans le `.md`.
+ * PURE mutations of the scene (F7 editing). Each function returns a new
+ * Scene; the write-back takes care of rewriting it into the `.md`.
  */
 import type { Db, Layer, Link, Node, Scene } from "./types";
 import { SINK } from "./types";
@@ -8,7 +8,7 @@ import { nodePorts } from "./ports";
 
 const LAYER_COLORS = ["#3b82f6", "#f59e0b", "#22c55e", "#ef4444", "#a855f7", "#06b6d4", "#ec4899", "#84cc16"];
 
-/** Premier identifiant de calque `cN` libre. */
+/** First free layer id `cN`. */
 function nextLayerId(scene: Scene): string {
   const ids = new Set(scene.calques.map((c) => c.id));
   let i = 1;
@@ -16,7 +16,7 @@ function nextLayerId(scene: Scene): string {
   return `c${i}`;
 }
 
-/** Alloue `n` identifiants de nœud `nN` libres (sans collision dans le lot). */
+/** Allocates `n` free node ids `nN` (no collisions within the batch). */
 function allocNodeIds(scene: Scene, n: number): string[] {
   const ids = new Set(scene.noeuds.map((x) => x.id));
   const out: string[] = [];
@@ -28,7 +28,7 @@ function allocNodeIds(scene: Scene, n: number): string[] {
   return out;
 }
 
-/** Crée un calque regroupant les nœuds sélectionnés. */
+/** Creates a layer grouping the selected nodes. */
 export function createLayer(scene: Scene, ids: string[], opts: { nom?: string } = {}): Scene {
   if (ids.length === 0) return scene;
   const id = nextLayerId(scene);
@@ -47,7 +47,7 @@ export function createLayer(scene: Scene, ids: string[], opts: { nom?: string } 
   };
 }
 
-/** Replie / déplie un calque (vue module à ports agrégés). */
+/** Collapses / expands a layer (module view with aggregated ports). */
 export function toggleLayerCollapsed(scene: Scene, layerId: string): Scene {
   return {
     ...scene,
@@ -55,7 +55,7 @@ export function toggleLayerCollapsed(scene: Scene, layerId: string): Scene {
   };
 }
 
-/** Met à jour les champs d'un calque (nom, icône, couleur…). */
+/** Updates a layer's fields (name, icon, color…). */
 export function updateLayer(scene: Scene, layerId: string, patch: Partial<Layer>): Scene {
   return {
     ...scene,
@@ -63,13 +63,13 @@ export function updateLayer(scene: Scene, layerId: string, patch: Partial<Layer>
   };
 }
 
-/** Presse-papiers : nœuds + liens internes copiés. */
+/** Clipboard: copied nodes + internal links. */
 export interface Clipboard {
   nodes: Node[];
   liens: Link[];
 }
 
-/** Construit un presse-papiers depuis une sélection (liens internes seulement). */
+/** Builds a clipboard from a selection (internal links only). */
 export function copyNodes(scene: Scene, ids: string[]): Clipboard {
   const set = new Set(ids);
   return {
@@ -78,7 +78,7 @@ export function copyNodes(scene: Scene, ids: string[]): Clipboard {
   };
 }
 
-/** Colle un presse-papiers (nouveaux ids, position décalée). Renvoie les ids créés. */
+/** Pastes a clipboard (new ids, offset position). Returns the created ids. */
 export function pasteInto(
   scene: Scene,
   clip: Clipboard,
@@ -102,7 +102,7 @@ export function pasteInto(
 
 const round = (n: number) => Math.round(n * 100) / 100;
 
-/** Premier identifiant `nN` libre. */
+/** First free node id `nN`. */
 export function nextNodeId(scene: Scene): string {
   const ids = new Set(scene.noeuds.map((n) => n.id));
   let i = 1;
@@ -110,19 +110,19 @@ export function nextNodeId(scene: Scene): string {
   return `n${i}`;
 }
 
-/** Champs d'un nœud modifiables via l'éditeur. */
+/** Node fields editable through the editor. */
 export type NodePatch = Partial<
   Pick<Node, "recette" | "machines" | "calque" | "machine" | "intrants" | "extrants">
 >;
 
-/** Met à jour les champs éditables d'un nœud. Une clé à `undefined` la retire. */
+/** Updates a node's editable fields. A key set to `undefined` removes it. */
 export function updateNode(scene: Scene, id: string, patch: NodePatch): Scene {
   return {
     ...scene,
     noeuds: scene.noeuds.map((n) => {
       if (n.id !== id) return n;
       const next = { ...n, ...patch };
-      // Nettoie les surcharges mises à undefined (retour à la recette DB).
+      // Clean up overrides set to undefined (revert to the DB recipe).
       if ("intrants" in patch && patch.intrants === undefined) delete next.intrants;
       if ("extrants" in patch && patch.extrants === undefined) delete next.extrants;
       if ("machine" in patch && patch.machine === undefined) delete next.machine;
@@ -131,7 +131,7 @@ export function updateNode(scene: Scene, id: string, patch: NodePatch): Scene {
   };
 }
 
-/** Ajoute un nœud d'une recette donnée à la position indiquée. */
+/** Adds a node for a given recipe at the given position. */
 export function addNode(scene: Scene, recetteId: string, pos: [number, number]): Scene {
   const id = nextNodeId(scene);
   return {
@@ -140,7 +140,7 @@ export function addNode(scene: Scene, recetteId: string, pos: [number, number]):
   };
 }
 
-/** Supprime des nœuds et tous les liens qui les touchent. */
+/** Removes nodes and every link touching them. */
 export function removeNodes(scene: Scene, ids: Set<string>): Scene {
   return {
     ...scene,
@@ -149,10 +149,10 @@ export function removeNodes(scene: Scene, ids: Set<string>): Scene {
   };
 }
 
-/** Clé d'identité d'un lien (pour suppression). */
+/** Identity key of a link (used for deletion). */
 export const linkKey = (de: string, vers: string, produit: string) => `${de}|${vers}|${produit}`;
 
-/** Bascule le bout d'un lien : flèche normale ➤ ↔ boucle ♻ (réinjection). */
+/** Toggles a link's end style: normal arrow ➤ ↔ loop ♻ (reinjection). */
 export function toggleLinkLoop(scene: Scene, de: string, vers: string, produit: string): Scene {
   return {
     ...scene,
@@ -162,7 +162,7 @@ export function toggleLinkLoop(scene: Scene, de: string, vers: string, produit: 
   };
 }
 
-/** Supprime les liens dont la clé figure dans `keys`. */
+/** Removes the links whose key is in `keys`. */
 export function removeLinks(scene: Scene, keys: Set<string>): Scene {
   return {
     ...scene,
@@ -177,16 +177,16 @@ export interface ConnectParams {
   targetHandle?: string | null;
 }
 
-/** Résultat explicite d'une tentative de connexion (avec raison du refus). */
+/** Explicit result of a connection attempt (with the refusal reason). */
 export type ConnectResult =
   | { ok: true; scene: Scene; produit: string; debit: number; vers: string }
   | { ok: false; reason: string };
 
 /**
- * Crée un lien à partir d'une connexion souris. Ne crée QUE des liens valides :
- *  - vers le Sink → route le plus gros surplus / sous-produit orphelin (lève le blocage) ;
- *  - vers un nœud → uniquement un produit que la cible CONSOMME (pas de faux débouché).
- * Renvoie une raison lisible en cas de refus (affichée à l'utilisateur).
+ * Creates a link from a mouse connection. ONLY creates valid links:
+ *  - to the Sink → routes the largest surplus / orphan by-product (clears the blockage);
+ *  - to a node → only a product the target CONSUMES (no fake outlet).
+ * Returns a human-readable reason on refusal (shown to the user).
  */
 export function connect(scene: Scene, db: Db, c: ConnectParams): ConnectResult {
   if (!c.source || !c.target || c.source === c.target) {
@@ -205,7 +205,7 @@ export function connect(scene: Scene, db: Db, c: ConnectParams): ConnectResult {
   const toSink = c.target === SINK;
   const itemName = (id: string) => db.items[id]?.nom ?? id;
 
-  // Le Sink n'accepte que les solides.
+  // The Sink only accepts solids.
   const isFluid = (item: string) => db.items[item]?.etat === "fluide";
 
   const candidates = srcPorts.extrants

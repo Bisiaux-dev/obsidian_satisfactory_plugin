@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- * Déploie le build courant (main.js + manifest.json + styles.css) dans le
- * dossier plugin du vault de test. `data.json` n'est jamais touché.
+ * Deploys the current build (main.js + manifest.json + styles.css) into the
+ * test vault's plugin folder. `data.json` is never touched.
  *
- * Vault cible : $SFY_TEST_VAULT, sinon `../satisfactory-test-vault`.
+ * Target vault: $SFY_TEST_VAULT, otherwise `../satisfactory-test-vault`.
  */
 const fs = require("fs");
 const path = require("path");
@@ -16,8 +16,8 @@ const DEST = path.join(VAULT, ".obsidian", "plugins", PLUGIN_ID);
 const FILES = ["main.js", "manifest.json", "styles.css"];
 
 if (!fs.existsSync(VAULT)) {
-  console.error(`[deploy] vault introuvable: ${VAULT}`);
-  console.error(`[deploy] définis SFY_TEST_VAULT pour pointer ailleurs.`);
+  console.error(`[deploy] vault not found: ${VAULT}`);
+  console.error(`[deploy] set SFY_TEST_VAULT to point elsewhere.`);
   process.exit(1);
 }
 
@@ -26,7 +26,7 @@ fs.mkdirSync(DEST, { recursive: true });
 for (const f of FILES) {
   const src = path.join(REPO_ROOT, f);
   if (!fs.existsSync(src)) {
-    console.error(`[deploy] manquant: ${src} — as-tu lancé le build ?`);
+    console.error(`[deploy] missing: ${src} — did you run the build?`);
     process.exit(1);
   }
   fs.copyFileSync(src, path.join(DEST, f));

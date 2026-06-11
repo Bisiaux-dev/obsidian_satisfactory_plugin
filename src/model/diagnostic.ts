@@ -1,21 +1,21 @@
 /**
- * Diagnostic d'une chaîne de production — FONCTION PURE de (Scene + Db).
+ * Diagnostic of a production chain — PURE FUNCTION of (Scene + Db).
  *
- * Recalculable à l'identique par le plugin (rendu visuel) ET par une IA (lecture
- * du `.md`) : c'est la garantie que le `.md` reste la source de vérité. Les règles
- * exactes sont documentées dans DIAGNOSTIC.md — garder les deux synchronisés.
+ * Identically recomputable by the plugin (visual rendering) AND by an AI
+ * (reading the `.md`): this guarantees the `.md` stays the source of truth.
+ * The exact rules are documented in DIAGNOSTIC.md — keep both in sync.
  *
- * Règles (par nœud) :
- *  - 🔴 bad  : un EXTRANT (produit ou sous-produit) sans AUCUN lien sortant → orphelin → bloque.
- *  - 🟡 warn : surplus (production > demande routée) ; déficit (demande > production) ;
- *              intrant sous-alimenté (apport entrant < besoin) → machine bridée.
- *  - 🟢 ok   : tous les extrants ont un débouché équilibré et tous les intrants sont fournis.
+ * Rules (per node):
+ *  - 🔴 bad  : an OUTPUT (product or by-product) with NO outgoing link → orphaned → blocks.
+ *  - 🟡 warn : surplus (production > routed demand); shortfall (demand > production);
+ *              under-supplied input (incoming supply < need) → throttled machine.
+ *  - 🟢 ok   : every output has a balanced outlet and every input is supplied.
  */
 import type { Db, Diagnostic, Issue, Scene, Status } from "./types";
 import { SINK } from "./types";
 import { nodePorts } from "./ports";
 
-/** Tolérance sur les débits (arrondis de recettes). */
+/** Tolerance on rates (recipe rounding). */
 const EPS = 0.01;
 
 const worse = (a: Status, b: Status): Status => {
@@ -31,13 +31,13 @@ export function diagnose(scene: Scene, db: Db): Diagnostic {
     status[nodeId] = worse(status[nodeId] ?? "ok", s);
   };
 
-  // Débits effectifs (recette × machines, ou surcharges custom) par nœud.
+  // Effective rates (recipe × machines, or custom overrides) per node.
   const portsById = new Map(scene.noeuds.map((n) => [n.id, nodePorts(n, db)]));
 
   const isFluid = (item: string) => db.items[item]?.etat === "fluide";
 
-  // Items consommés par chaque nœud — pour valider qu'un lien est un VRAI débouché.
-  // Le Sink n'accepte QUE les solides (pas les fluides/gaz).
+  // Items consumed by each node — to validate that a link is a REAL outlet.
+  // The Sink ONLY accepts solids (no fluids/gases).
   const isValidOutlet = (vers: string, produit: string): boolean =>
     vers === SINK
       ? !isFluid(produit)
@@ -60,13 +60,13 @@ export function diagnose(scene: Scene, db: Db): Diagnostic {
     const outgoing = scene.liens.filter((l) => l.de === node.id);
     const incoming = scene.liens.filter((l) => l.vers === node.id);
 
-    // --- Extrants : chaque sortie doit avoir un débouché VALIDE ---
+    // --- Outputs: every output must have a VALID outlet ---
     for (const ex of ports.extrants) {
       const produced = ex.debit;
       const itemName = db.items[ex.item]?.nom ?? ex.item;
       const links = outgoing.filter((l) => l.produit === ex.item);
 
-      // Liens invalides : faux débouché (cible ne consomme pas, ou fluide → Sink).
+      // Invalid links: fake outlet (target does not consume it, or fluid → Sink).
       for (const bad of links.filter((l) => !isValidOutlet(l.vers, ex.item))) {
         const reason =
           bad.vers === SINK
@@ -76,7 +76,7 @@ export function diagnose(scene: Scene, db: Db): Diagnostic {
         bump(node.id, "bad");
       }
 
-      // Seuls les liens valides comptent comme évacuation réelle.
+      // Only valid links count as actual evacuation.
       const routed = links
         .filter((l) => isValidOutlet(l.vers, ex.item))
         .reduce((sum, l) => sum + l.debit, 0);
@@ -108,7 +108,7 @@ export function diagnose(scene: Scene, db: Db): Diagnostic {
       }
     }
 
-    // --- Intrants : chaque besoin doit être alimenté ---
+    // --- Inputs: every need must be supplied ---
     for (const inp of ports.intrants) {
       const needed = inp.debit;
       const supplied = incoming

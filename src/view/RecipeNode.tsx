@@ -5,30 +5,30 @@ import type { Port, Status } from "../model/types";
 import { DeleteButton } from "./DeleteButton";
 import { Inline, useEditNode } from "./inline";
 
-/** Données portées par un nœud-recette dans le graphe React Flow. */
+/** Data carried by a recipe node in the React Flow graph. */
 export interface RecipeNodeData extends Record<string, unknown> {
   icone?: string;
-  /** Icône image (data-URI) de l'item produit ; prioritaire sur `icone`. */
+  /** Image icon (data-URI) of the produced item; takes precedence over `icone`. */
   iconUrl?: string;
   produit: string;
   recette: string;
   alternative?: boolean;
   machine: string;
   machines: number;
-  /** Débit du produit principal (total = nominal × machines). */
+  /** Flow rate of the main product (total = nominal × machines). */
   debit: number;
   status: Status;
   badge: string;
-  /** Messages de diagnostic à afficher dans le nœud. */
+  /** Diagnostic messages to display in the node. */
   issues: string[];
-  /** Débits effectifs (pour matérialiser une surcharge lors d'une édition inline). */
+  /** Effective flow rates (to materialize an override during an inline edit). */
   intrants: Port[];
   extrants: Port[];
-  /** Réglage : forcer un nombre de machines entier. */
+  /** Setting: force a whole number of machines. */
   wholeMachines?: boolean;
 }
 
-/** Texte des badges ; la pastille colorée est rendue en CSS (::before sur .sfy-badge). */
+/** Badge text; the colored dot is rendered in CSS (::before on .sfy-badge). */
 const BADGE: Record<Status, string> = { ok: "OK", warn: "CHECK", bad: "BLOCKED" };
 
 export function RecipeNode({ id, data }: NodeProps) {
@@ -38,7 +38,7 @@ export function RecipeNode({ id, data }: NodeProps) {
     const n = Number(v) || 0;
     return d.wholeMachines ? Math.max(1, Math.round(n)) : Math.max(0, n);
   };
-  // Éditer un débit/la machine → matérialise une surcharge (débits absolus).
+  // Editing a flow rate/the machine → materializes an override (absolute flow rates).
   const setOutDebit = (v: string) =>
     editNode?.(id, {
       machine: d.machine,
@@ -73,7 +73,7 @@ export function RecipeNode({ id, data }: NodeProps) {
 
       <Handle type="target" position={Position.Left} id="l" />
       <Handle type="source" position={Position.Right} id="r" />
-      {/* poignées du bas : rendu des boucles uniquement (non connectables à la souris) */}
+      {/* bottom handles: loop rendering only (not connectable with the mouse) */}
       <Handle type="source" position={Position.Bottom} id="b" isConnectable={false} />
       <Handle type="target" position={Position.Bottom} id="bt" isConnectable={false} />
     </div>

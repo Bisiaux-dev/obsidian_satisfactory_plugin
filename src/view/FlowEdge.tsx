@@ -3,34 +3,34 @@ import type { EdgeProps } from "@xyflow/react";
 import { Play, Repeat2, X } from "lucide-react";
 import { useToggleLink } from "./inline";
 
-/** Données portées par une arête : la matière transportée et son flux. */
+/** Data carried by an edge: the transported material and its flow. */
 export interface FlowEdgeData extends Record<string, unknown> {
-  /** Couleur = le produit (teinte de l'item). */
+  /** Color = the product (item's hue). */
   color: string;
-  /** true = liquide/gaz → trait pointillé ; false = solide → trait plein. */
+  /** true = liquid/gas → dashed stroke; false = solid → plain stroke. */
   fluid: boolean;
-  /** Étiquette : nom du produit. */
+  /** Label: product name. */
   label: string;
-  /** Sous-étiquette : débit. */
+  /** Sub-label: flow rate. */
   debit: string;
-  /** true si réinjection (boucle) → bout ♻ au lieu de ➤. */
+  /** true if reinjection (loop) → ♻ cap instead of ➤. */
   boucle?: boolean;
-  /** Position de l'étiquette parmi les flèches parallèles (même source→cible). */
+  /** Label position among parallel arrows (same source→target). */
   labelIndex?: number;
   labelCount?: number;
-  /** Identité du lien (pour basculer son bout au double-clic). */
+  /** Link identity (to toggle its cap on double-click). */
   de?: string;
   vers?: string;
   produit?: string;
 }
 
-/** Orientation de la pointe selon le côté d'arrivée (handles alignés sur les axes). */
+/** Arrowhead orientation based on the arrival side (handles aligned on the axes). */
 function capAngle(target: Position): number {
   switch (target) {
     case Position.Right: return 180;
     case Position.Top: return 90;
     case Position.Bottom: return -90;
-    default: return 0; // Left → flux vers la droite
+    default: return 0; // Left → flow to the right
   }
 }
 
@@ -44,7 +44,7 @@ export function FlowEdge(props: EdgeProps) {
     sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition,
   });
 
-  // Léger décalage du bout vers l'extérieur du nœud pour qu'il reste visible.
+  // Slight offset of the cap toward the outside of the node so it stays visible.
   const off = 7;
   const ox = targetPosition === Position.Left ? -off : targetPosition === Position.Right ? off : 0;
   const oy = targetPosition === Position.Top ? -off : targetPosition === Position.Bottom ? off : 0;
@@ -70,8 +70,8 @@ export function FlowEdge(props: EdgeProps) {
           }}
           style={{
             position: "absolute",
-            // décale verticalement les étiquettes des flèches parallèles pour éviter
-            // qu'elles se superposent (cas des calques repliés → même cible).
+            // vertically offsets the labels of parallel arrows so they
+            // don't overlap (case of collapsed layers → same target).
             transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY + ((d.labelIndex ?? 0) - (((d.labelCount ?? 1) - 1) / 2)) * 40}px)`,
             pointerEvents: "all",
             cursor: "pointer",
@@ -92,7 +92,7 @@ export function FlowEdge(props: EdgeProps) {
           <small>{d.debit}</small>
         </div>
 
-        {/* Bout = sens du flux, toujours visible (➤) ou réinjection (♻). */}
+        {/* Cap = flow direction, always visible (➤) or reinjection (♻). */}
         <div
           className="sfy-edge-cap"
           style={{

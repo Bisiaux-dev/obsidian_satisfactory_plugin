@@ -1,9 +1,9 @@
 /**
- * Import inter-notes (modularité) : une note « usine » expose ses LIVRABLES, qu'une
- * autre note peut importer comme une boîte noire et router dans sa propre chaîne.
+ * Cross-note import (modularity): a "factory" note exposes its DELIVERABLES, which
+ * another note can import as a black box and route into its own chain.
  *
- * Pur (sauf la lecture du fichier, faite par l'appelant) : la résolution consiste à
- * extraire le bloc ```satisfactory de la note référencée et à en déduire ses sorties.
+ * Pure (except for reading the file, done by the caller): resolution consists of
+ * extracting the ```satisfactory block from the referenced note and deriving its outputs.
  */
 import type { Db, Port, Scene } from "./types";
 import { SINK } from "./types";
@@ -11,16 +11,16 @@ import { nodePorts } from "./ports";
 
 const round = (n: number) => Math.round(n * 100) / 100;
 
-/** Extrait le corps du PREMIER bloc ```satisfactory d'un texte Markdown (ou null). */
+/** Extracts the body of the FIRST ```satisfactory block from a Markdown text (or null). */
 export function extractSatisfactoryBlock(markdown: string): string | null {
   const m = markdown.match(/```satisfactory[^\n]*\n([\s\S]*?)```/);
   return m ? m[1] : null;
 }
 
 /**
- * Livrables d'une scène = ce qu'elle met à disposition en sortie :
- *  1. en priorité, ses liens explicites vers le Sink (les « produits finis » voulus) ;
- *  2. sinon, son surplus net (Σ extrants − Σ intrants, items positifs).
+ * Deliverables of a scene = what it makes available as output:
+ *  1. preferably, its explicit links to the Sink (the intended "finished products");
+ *  2. otherwise, its net surplus (Σ outputs − Σ inputs, positive items).
  */
 export function sceneExports(scene: Scene, db: Db): Port[] {
   const sink = new Map<string, number>();

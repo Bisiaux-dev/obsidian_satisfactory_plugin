@@ -12,9 +12,9 @@ interface Props {
 }
 
 /**
- * Panneau « Aide au besoin » (F3) : pour un item + un débit voulu, calcule la
- * chaîne qui minimise les ressources brutes (via le solveur LP) et peut la
- * générer dans le bloc.
+ * "Need helper" panel (F3): for an item + a desired rate, computes the
+ * chain that minimizes raw resources (via the LP solver) and can
+ * generate it into the block.
  */
 export function Optimizer({ onGenerate, onClose, onNotice }: Props) {
   const items = useMemo(

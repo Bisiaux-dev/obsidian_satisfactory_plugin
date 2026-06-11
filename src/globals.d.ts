@@ -1,10 +1,10 @@
-/** Permet d'importer un .css comme chaîne de texte (loader esbuild `text`). */
+/** Allows importing a .css file as a text string (esbuild `text` loader). */
 declare module "*.css" {
   const content: string;
   export default content;
 }
 
-/** Permet d'importer un .md comme chaîne de texte (loader esbuild `text`) — guide embarqué. */
+/** Allows importing a .md file as a text string (esbuild `text` loader) — embedded guide. */
 declare module "*.md" {
   const content: string;
   export default content;

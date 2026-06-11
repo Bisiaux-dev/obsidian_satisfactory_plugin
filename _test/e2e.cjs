@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 /**
- * Runner e2e — pilote le VRAI Obsidian via Chrome DevTools Protocol.
+ * E2E runner — drives the REAL Obsidian via Chrome DevTools Protocol.
  *
- * Prérequis :
+ * Prerequisites:
  *   1. npm run build
  *   2. node _test/deploy.cjs
  *   3. powershell -File _test/launch-obsidian.ps1 -Vault <satisfactory-test-vault>
  *   4. node _test/e2e.cjs
  *
- * Vérifie : plugin chargé, bloc rendu (React Flow), badges diagnostic (A bloqué
- * par la silice orpheline, charbon sous-utilisé), flèches ➤ + boucle ♻, calques,
- * et le WRITE-BACK au drop (drag réel d'un nœud → pos réécrite dans le .md).
- * Screenshot dans _test/last-run.png. Exit 0 si tout passe.
+ * Verifies: plugin loaded, block rendered (React Flow), diagnostic badges (A blocked
+ * by the orphaned silica, under-used coal), arrows ➤ + loop ♻, layers,
+ * and the WRITE-BACK on drop (real drag of a node → pos rewritten into the .md).
+ * Screenshot in _test/last-run.png. Exit 0 if everything passes.
  */
 const fs = require("fs");
 const path = require("path");
@@ -20,7 +20,7 @@ const { connect, sleep, PORT } = require("./cdp.cjs");
 const PLUGIN_ID = "satisfactory-chains";
 const NOTE = "EXAMPLE.md";
 
-// Contenu propre réécrit avant le run (idempotence) — vraie chaîne (données du jeu).
+// Clean content rewritten before the run (idempotence) — real chain (game data).
 const CLEAN = `# Example — iron + plastic chain (e2e test)
 
 \`\`\`satisfactory
@@ -45,11 +45,11 @@ layers:
 const checks = [];
 const check = (name, status, msg) => checks.push({ name, status, msg });
 
-// Un leaf markdown a 2 surfaces de rendu (éditeur live-preview caché + vue
-// lecture visible) → on scope tout à la vue lecture pour mesurer le rendu réel.
+// A markdown leaf has 2 render surfaces (hidden live-preview editor + visible
+// reading view) → scope everything to the reading view to measure the real render.
 const SCOPE = ".markdown-reading-view";
-// On drague un nœud CENTRAL avec un petit déplacement : loin des bords du pane
-// → pas d'auto-pan de React Flow → on isole la stabilité caméra du write-back.
+// Drag a CENTRAL node with a small offset: far from the pane edges
+// → no React Flow auto-pan → isolates camera stability from the write-back.
 const D_SEL = `${SCOPE} [data-id="plate"]`;
 
 async function q(cdp, selector, prop = "length") {
@@ -61,26 +61,26 @@ async function main() {
   try {
     cdp = await connect();
   } catch (e) {
-    console.error(`\n✗ Connexion CDP impossible sur le port ${PORT}: ${e.message}`);
-    console.error(`  → Lance: powershell -File _test/launch-obsidian.ps1 -Vault <vault>\n`);
+    console.error(`\n✗ CDP connection failed on port ${PORT}: ${e.message}`);
+    console.error(`  → Run: powershell -File _test/launch-obsidian.ps1 -Vault <vault>\n`);
     process.exit(1);
   }
-  console.log(`[e2e] connecté à : ${cdp.target.title || cdp.target.url}`);
+  console.log(`[e2e] connected to: ${cdp.target.title || cdp.target.url}`);
 
-  // 1) Reload plugin (charge le main.js fraîchement déployé).
+  // 1) Reload plugin (loads the freshly deployed main.js).
   await cdp.evalJS(`(async () => {
     await app.plugins.disablePlugin('${PLUGIN_ID}');
     await app.plugins.enablePlugin('${PLUGIN_ID}');
   })()`);
   await sleep(800);
 
-  // 2) Réécrit la note propre, FERME tous les leaves markdown résiduels, puis
-  //    ouvre UN seul leaf en mode lecture (le bloc se rend une seule fois).
+  // 2) Rewrite the clean note, CLOSE all leftover markdown leaves, then
+  //    open a SINGLE leaf in reading mode (the block renders only once).
   await cdp.evalJS(`(async () => {
     let f = app.vault.getAbstractFileByPath('${NOTE}');
     if (!f) f = await app.vault.create('${NOTE}', ${JSON.stringify(CLEAN)});
     else await app.vault.modify(f, ${JSON.stringify(CLEAN)});
-    // garde UN leaf markdown, ferme les autres (sans supprimer le groupe d'onglets)
+    // keep ONE markdown leaf, close the others (without removing the tab group)
     const leaves = app.workspace.getLeavesOfType('markdown');
     for (let i = 1; i < leaves.length; i++) leaves[i].detach();
     const leaf = leaves[0] || app.workspace.getLeaf(true);
@@ -89,28 +89,28 @@ async function main() {
   })()`);
   await sleep(2500);
   const leaves = await cdp.evalJS(`app.workspace.getLeavesOfType('markdown').length`);
-  check("un seul leaf markdown", leaves === 1 ? "pass" : "fail", `${leaves} leaf(s)`);
-  // Normalise la caméra UNE fois (fitView) tôt, pour un drag déterministe sans
-  // perturber le viewport pendant le test de stabilité caméra.
+  check("single markdown leaf", leaves === 1 ? "pass" : "fail", `${leaves} leaf(s)`);
+  // Normalize the camera ONCE (fitView) early, for a deterministic drag without
+  // disturbing the viewport during the camera stability test.
   await cdp.evalJS(`document.querySelector('${SCOPE} .react-flow__controls-fitview')?.click()`);
   await sleep(800);
 
-  // 3) Assertions de rendu (DOM observable dans le vrai Obsidian).
-  check("plugin activé", (await cdp.evalJS(`!!app.plugins.plugins['${PLUGIN_ID}']?._loaded`)) ? "pass" : "fail", "");
+  // 3) Render assertions (DOM observable in the real Obsidian).
+  check("plugin enabled", (await cdp.evalJS(`!!app.plugins.plugins['${PLUGIN_ID}']?._loaded`)) ? "pass" : "fail", "");
   const graph = await q(cdp, ".sfy-graph");
-  check("bloc satisfactory rendu (.sfy-graph)", graph === 1 ? "pass" : "fail", `${graph} graphe(s) en vue lecture`);
+  check("satisfactory block rendered (.sfy-graph)", graph === 1 ? "pass" : "fail", `${graph} graph(s) in reading view`);
   const rfNodes = await q(cdp, ".react-flow__node");
-  check("nœuds React Flow", rfNodes >= 8 ? "pass" : "fail", `${rfNodes} (attendu 8 : 5 nœuds + Sink + 2 calques)`);
+  check("React Flow nodes", rfNodes >= 8 ? "pass" : "fail", `${rfNodes} (expected 8: 5 nodes + Sink + 2 layers)`);
   const groups = await q(cdp, ".sfy-group");
-  check("calques rendus", groups === 2 ? "pass" : "fail", `${groups} (attendu 2 : fonte, petro)`);
+  check("layers rendered", groups === 2 ? "pass" : "fail", `${groups} (expected 2: smelting, petro)`);
   const bad = await q(cdp, ".sfy-node.bad");
-  check("nœud bloqué (résidu d'huile orphelin)", bad === 1 ? "pass" : "fail", `${bad} nœud(s) .bad (attendu 1 : plastic)`);
+  check("blocked node (orphaned oil residue)", bad === 1 ? "pass" : "fail", `${bad} .bad node(s) (expected 1: plastic)`);
   const warn = await q(cdp, ".sfy-node.warn");
-  check("nœud sous-utilisé (surplus minerai)", warn >= 1 ? "pass" : "fail", `${warn} nœud(s) .warn`);
+  check("under-used node (ore surplus)", warn >= 1 ? "pass" : "fail", `${warn} .warn node(s)`);
   const arrows = await q(cdp, ".sfy-cap-arrow");
-  check("flèches directionnelles ➤", arrows >= 4 ? "pass" : "fail", `${arrows} pointes (attendu 5)`);
+  check("directional arrows ➤", arrows >= 4 ? "pass" : "fail", `${arrows} arrowheads (expected 5)`);
 
-  // 4) Write-back : drag réel du nœud D → DOM bouge ET pos réécrite dans le .md.
+  // 4) Write-back: real drag of node D → DOM moves AND pos rewritten into the .md.
   const readDpos = `(async () => {
     const f = app.vault.getAbstractFileByPath('${NOTE}');
     const m = (await app.vault.read(f)).match(/id: plate,[^}]*pos: \\[([-\\d]+), ([-\\d]+)\\]/);
@@ -127,12 +127,12 @@ async function main() {
   const posBefore = await cdp.evalJS(readDpos);
   const tBefore = await cdp.evalJS(domTransform);
   const vpBefore = await cdp.evalJS(vpSel);
-  // Marque l'élément DOM du viewport (vue lecture) : s'il est conservé après le
-  // write-back, React a RÉCONCILIÉ (pas de remontage = pas de flicker visible).
+  // Mark the viewport DOM element (reading view): if it is kept after the
+  // write-back, React RECONCILED (no remount = no visible flicker).
   await cdp.evalJS(`(() => { const e = document.querySelector('${SCOPE} .react-flow__viewport'); if (e && !e.dataset.sfyMark) e.dataset.sfyMark = 'm' + (window.__sfyMarkN = (window.__sfyMarkN || 0) + 1); })()`);
   const markBefore = await cdp.evalJS(`document.querySelector('${SCOPE} .react-flow__viewport')?.dataset.sfyMark ?? null`);
   if (rect && posBefore) {
-    // Retry : les events souris synthétiques ratent parfois la capture pointer.
+    // Retry: synthetic mouse events sometimes miss the pointer capture.
     let tAfter = tBefore;
     for (let attempt = 1; attempt <= 3 && tAfter === tBefore; attempt++) {
       const r = await cdp.evalJS(`(() => {
@@ -147,29 +147,29 @@ async function main() {
       tAfter = await cdp.evalJS(domTransform);
       if (tAfter === tBefore) await sleep(300);
     }
-    check("drag déplace le nœud (DOM)", tAfter !== tBefore ? "pass" : "fail", `transform ${tBefore} → ${tAfter}`);
+    check("drag moves the node (DOM)", tAfter !== tBefore ? "pass" : "fail", `transform ${tBefore} → ${tAfter}`);
     await sleep(1400);
     const posAfter = await cdp.evalJS(readDpos);
     check(
-      "write-back au drop (pos de D réécrite)",
+      "write-back on drop (D's pos rewritten)",
       posAfter && posAfter !== posBefore ? "pass" : "fail",
       `pos ${posBefore} → ${posAfter}`,
     );
-    // (La stabilité caméra est vérifiée autour de l'édition inline en 4f :
-    //  write-back sans drag → pas d'auto-pan, mesure non-flaky.)
-    // Preuve anti-flicker : l'élément DOM du viewport (vue lecture) est conservé
-    // → React a réconcilié l'arbre existant, pas de remontage de la vue visible.
+    // (Camera stability is verified around the inline edit in 4f:
+    //  write-back without drag → no auto-pan, non-flaky measurement.)
+    // Anti-flicker proof: the viewport DOM element (reading view) is kept
+    // → React reconciled the existing tree, no remount of the visible view.
     const markAfter = await cdp.evalJS(`document.querySelector('${SCOPE} .react-flow__viewport')?.dataset.sfyMark ?? null`);
     check(
-      "pas de remontage React (anti-flicker)",
+      "no React remount (anti-flicker)",
       markAfter && markAfter === markBefore ? "pass" : "fail",
-      `viewport vue lecture ${markAfter === markBefore ? "conservé (réconcilié)" : "recréé (remonté)"}`,
+      `reading view viewport ${markAfter === markBefore ? "kept (reconciled)" : "recreated (remounted)"}`,
     );
   } else {
-    check("write-back au drop", "fail", "nœud D introuvable pour le drag");
+    check("write-back on drop", "fail", "node D not found for the drag");
   }
 
-  // 4b) Suppression d'un nœud via le bouton ✕ → disparaît du DOM ET du .md.
+  // 4b) Delete a node via the ✕ button → disappears from the DOM AND the .md.
   const cInDomBefore = await cdp.evalJS(`!!document.querySelector('${SCOPE} [data-id="oil"]')`);
   const cInMdBefore = await cdp.evalJS(`(async () => {
     const f = app.vault.getAbstractFileByPath('${NOTE}');
@@ -183,13 +183,13 @@ async function main() {
       const f = app.vault.getAbstractFileByPath('${NOTE}');
       return (await app.vault.read(f)).includes('id: oil,');
     })()`);
-    check("supprimer un nœud (bouton ✕)", !cInDomAfter && !cInMdAfter ? "pass" : "fail",
-      `C — DOM:${cInDomAfter ? "présent" : "retiré"} / .md:${cInMdAfter ? "présent" : "retiré"}`);
+    check("delete a node (✕ button)", !cInDomAfter && !cInMdAfter ? "pass" : "fail",
+      `C — DOM:${cInDomAfter ? "present" : "removed"} / .md:${cInMdAfter ? "present" : "removed"}`);
   } else {
-    check("supprimer un nœud (bouton ✕)", "fail", "nœud oil introuvable avant suppression");
+    check("delete a node (✕ button)", "fail", "oil node not found before deletion");
   }
 
-  // 4c) Suppression d'un LIEN via le ✕ de l'étiquette → retiré du DOM et du .md.
+  // 4c) Delete a LINK via the label's ✕ → removed from the DOM and the .md.
   const edgesBefore = await q(cdp, ".react-flow__edge");
   const linkInMdBefore = await cdp.evalJS(`(async () => {
     const f = app.vault.getAbstractFileByPath('${NOTE}');
@@ -204,13 +204,13 @@ async function main() {
       const f = app.vault.getAbstractFileByPath('${NOTE}');
       return (await app.vault.read(f)).includes('from: plate, to: SINK');
     })()`);
-    check("supprimer un lien (✕ sur l'étiquette)", edgesAfter < edgesBefore && !linkInMdAfter ? "pass" : "fail",
-      `arêtes ${edgesBefore}→${edgesAfter}, .md plate→SINK ${linkInMdAfter ? "présent" : "retiré"}`);
+    check("delete a link (✕ on the label)", edgesAfter < edgesBefore && !linkInMdAfter ? "pass" : "fail",
+      `edges ${edgesBefore}→${edgesAfter}, .md plate→SINK ${linkInMdAfter ? "present" : "removed"}`);
   } else {
-    check("supprimer un lien (✕ sur l'étiquette)", "fail", "lien plate→SINK ou son ✕ introuvable");
+    check("delete a link (✕ on the label)", "fail", "plate→SINK link or its ✕ not found");
   }
 
-  // 4d) Édition d'un nœud : DOUBLE-CLIC sur A → ouvre l'éditeur → machines 2 → 3.
+  // 4d) Edit a node: DOUBLE-CLICK on A → opens the editor → machines 2 → 3.
   await cdp.evalJS(`document.querySelector('${SCOPE} [data-id="ingot"]')?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))`);
   await sleep(500);
   const editorShown = await cdp.evalJS(`!!document.querySelector('${SCOPE} .sfy-editor')`);
@@ -227,12 +227,12 @@ async function main() {
       const m = (await app.vault.read(f)).match(/id: ingot,[^}]*machines: (\\d+)/);
       return m ? m[1] : null;
     })()`);
-    check("éditer un nœud (machines 2→3)", aMachines === "3" ? "pass" : "fail", `machines dans .md = ${aMachines}`);
+    check("edit a node (machines 2→3)", aMachines === "3" ? "pass" : "fail", `machines in .md = ${aMachines}`);
   } else {
-    check("éditer un nœud (panneau)", "fail", "panneau d'édition non affiché après sélection");
+    check("edit a node (panel)", "fail", "edit panel not shown after selection");
   }
 
-  // 4e) Débits personnalisés : changer la machine + Appliquer → surcharges dans .md.
+  // 4e) Custom rates: change the machine + Apply → overrides in .md.
   const customInputShown = await cdp.evalJS(`!!document.querySelector('${SCOPE} .sfy-editor-custom .sfy-field input')`);
   if (customInputShown) {
     await cdp.evalJS(`(() => {
@@ -249,12 +249,12 @@ async function main() {
       const t = await app.vault.read(f);
       return t.includes('machine: TestMachine') && t.includes('outputs: [');
     })()`);
-    check("débits personnalisés (machine + extrants dans .md)", hasCustom ? "pass" : "fail", hasCustom ? "surcharges écrites" : "surcharges absentes");
+    check("custom rates (machine + outputs in .md)", hasCustom ? "pass" : "fail", hasCustom ? "overrides written" : "overrides missing");
   } else {
-    check("débits personnalisés", "fail", "champ machine custom non affiché");
+    check("custom rates", "fail", "custom machine field not shown");
   }
 
-  // 4f) Édition INLINE : double-clic sur le débit de sortie de A → écrit dans .md.
+  // 4f) INLINE edit: double-click on A's output rate → written to the .md.
   const inlineFound = await cdp.evalJS(`(() => {
     const line = [...document.querySelectorAll('${SCOPE} [data-id="ingot"] .sfy-line')].find(l => l.textContent.includes('Output'));
     const span = line && line.querySelector('.sfy-inline');
@@ -278,30 +278,30 @@ async function main() {
       const t = await app.vault.read(f);
       return /id: ingot,[\\s\\S]*?rate: 999/.test(t);
     })()`);
-    check("édition inline (double-clic débit → .md)", has999 ? "pass" : "fail", has999 ? "debit 999 écrit" : "debit non écrit");
-    // Caméra stable autour de ce write-back (sans drag → mesure fiable).
+    check("inline edit (double-click rate → .md)", has999 ? "pass" : "fail", has999 ? "rate 999 written" : "rate not written");
+    // Camera stable around this write-back (no drag → reliable measurement).
     const zoomAfterInline = await cdp.evalJS(`(() => { const e = document.querySelector('${SCOPE} .react-flow__viewport'); const m = e && e.style.transform.match(/scale\\(([\\d.]+)\\)/); return m ? m[1] : null; })()`);
-    // Tolérance : un vrai reset (fitView) changerait le zoom drastiquement ; une
-    // petite dérive (<25%) n'est pas un reset. Preuve forte = « pas de remontage ».
+    // Tolerance: a real reset (fitView) would change the zoom drastically; a
+    // small drift (<25%) is not a reset. The strong proof is "no remount".
     const drift = zoomAfterInline && zoomBeforeInline ? Math.abs(Number(zoomAfterInline) - Number(zoomBeforeInline)) / Number(zoomBeforeInline) : 1;
-    check("caméra stable après write-back (zoom préservé)", drift < 0.25 ? "pass" : "fail", `zoom ${zoomBeforeInline} → ${zoomAfterInline}`);
+    check("camera stable after write-back (zoom preserved)", drift < 0.25 ? "pass" : "fail", `zoom ${zoomBeforeInline} → ${zoomAfterInline}`);
   } else {
-    check("édition inline (double-clic)", "fail", "valeur inline introuvable sur le nœud ingot");
+    check("inline edit (double-click)", "fail", "inline value not found on the ingot node");
   }
 
-  // 4h) Annuler (Ctrl+Z via bouton ↶) : revient sur l'édition inline (999).
+  // 4h) Undo (Ctrl+Z via ↶ button): reverts the inline edit (999).
   const had999 = await cdp.evalJS(`(async () => { const f = app.vault.getAbstractFileByPath('${NOTE}'); return (await app.vault.read(f)).includes('999'); })()`);
   const undoBtn = await cdp.evalJS(`!!document.querySelector('${SCOPE} button[title^="Undo"]')`);
   if (had999 && undoBtn) {
     await cdp.evalJS(`document.querySelector('${SCOPE} button[title^="Undo"]').click()`);
     await sleep(1500);
     const still999 = await cdp.evalJS(`(async () => { const f = app.vault.getAbstractFileByPath('${NOTE}'); return (await app.vault.read(f)).includes('999'); })()`);
-    check("annuler (Ctrl+Z / ↶)", !still999 ? "pass" : "fail", still999 ? "999 toujours présent" : "édition annulée");
+    check("undo (Ctrl+Z / ↶)", !still999 ? "pass" : "fail", still999 ? "999 still present" : "edit undone");
   } else {
-    check("annuler (Ctrl+Z / ↶)", "fail", had999 ? "bouton ↶ introuvable" : "état 999 absent avant undo");
+    check("undo (Ctrl+Z / ↶)", "fail", had999 ? "↶ button not found" : "999 state missing before undo");
   }
 
-  // 4g) Replier un calque : clic sur ▾ → nœud module + replie:true dans .md.
+  // 4g) Collapse a layer: click ▾ → module node + collapsed:true in the .md.
   const toggleShown = await cdp.evalJS(`!!document.querySelector('${SCOPE} .sfy-group-toggle')`);
   if (toggleShown) {
     await cdp.evalJS(`document.querySelector('${SCOPE} .sfy-group-toggle').click()`);
@@ -311,10 +311,10 @@ async function main() {
       const f = app.vault.getAbstractFileByPath('${NOTE}');
       return (await app.vault.read(f)).includes('collapsed: true');
     })()`);
-    check("replier un calque (▾ → module + .md)", moduleShown && replieInMd ? "pass" : "fail",
-      `module:${moduleShown ? "affiché" : "absent"} / .md replie:${replieInMd}`);
+    check("collapse a layer (▾ → module + .md)", moduleShown && replieInMd ? "pass" : "fail",
+      `module:${moduleShown ? "shown" : "missing"} / .md collapsed:${replieInMd}`);
 
-    // 4i) Renommer un calque : double-clic sur le nom du module → .md.
+    // 4i) Rename a layer: double-click on the module name → .md.
     const nameInline = await cdp.evalJS(`(() => {
       const span = document.querySelector('${SCOPE} .sfy-module .sfy-inline');
       if (!span) return false;
@@ -332,27 +332,27 @@ async function main() {
       })()`);
       await sleep(1500);
       const renamed = await cdp.evalJS(`(async () => { const f = app.vault.getAbstractFileByPath('${NOTE}'); return (await app.vault.read(f)).includes('MonCalque'); })()`);
-      check("renommer un calque (double-clic → .md)", renamed ? "pass" : "fail", renamed ? "nom écrit" : "nom non écrit");
+      check("rename a layer (double-click → .md)", renamed ? "pass" : "fail", renamed ? "name written" : "name not written");
     } else {
-      check("renommer un calque", "fail", "nom inline introuvable sur le module");
+      check("rename a layer", "fail", "inline name not found on the module");
     }
   } else {
-    check("replier un calque", "fail", "bouton ▾ du calque introuvable");
+    check("collapse a layer", "fail", "layer ▾ button not found");
   }
 
-  // 4j) Auto-layout : clic « Ranger » → positions réécrites (espacées).
+  // 4j) Auto-layout: click "Tidy" → positions rewritten (spaced out).
   const posBeforeTidy = await cdp.evalJS(`(async () => { const f = app.vault.getAbstractFileByPath('${NOTE}'); const m = (await app.vault.read(f)).match(/id: ore,[^}]*pos: \\[([-\\d]+), ([-\\d]+)\\]/); return m ? m[1]+','+m[2] : null; })()`);
   const tidyBtn = await cdp.evalJS(`!!document.querySelector('${SCOPE} button[title^="Tidy"]')`);
   if (tidyBtn) {
     await cdp.evalJS(`document.querySelector('${SCOPE} button[title^="Tidy"]').click()`);
     await sleep(1500);
     const posAfterTidy = await cdp.evalJS(`(async () => { const f = app.vault.getAbstractFileByPath('${NOTE}'); const m = (await app.vault.read(f)).match(/id: ore,[^}]*pos: \\[([-\\d]+), ([-\\d]+)\\]/); return m ? m[1]+','+m[2] : null; })()`);
-    check("auto-layout (Ranger → positions réécrites)", posAfterTidy && posAfterTidy !== posBeforeTidy ? "pass" : "fail", `ore ${posBeforeTidy} → ${posAfterTidy}`);
+    check("auto-layout (Tidy → positions rewritten)", posAfterTidy && posAfterTidy !== posBeforeTidy ? "pass" : "fail", `ore ${posBeforeTidy} → ${posAfterTidy}`);
   } else {
-    check("auto-layout (Ranger)", "fail", "bouton Ranger introuvable");
+    check("auto-layout (Tidy)", "fail", "Tidy button not found");
   }
 
-  // 4k) Picker de nœuds : + Nœud → recherche « rubber » → clic → recette ajoutée au .md.
+  // 4k) Node picker: + Node → search "rubber" → click → recipe added to the .md.
   await cdp.evalJS(`document.querySelector('${SCOPE} [data-action="add-node"]')?.click()`);
   await sleep(400);
   const pickerShown = await cdp.evalJS(`!!document.querySelector('${SCOPE} .sfy-picker')`);
@@ -365,7 +365,7 @@ async function main() {
     })()`);
     await sleep(300);
     const rowCount = await cdp.evalJS(`document.querySelectorAll('${SCOPE} .sfy-picker-row').length`);
-    // Note le slug de la ligne cliquée (l'ordre du tri ne fait pas partie du contrat).
+    // Record the slug of the clicked row (the sort order is not part of the contract).
     const clickedRid = await cdp.evalJS(`(() => {
       const row = document.querySelector('${SCOPE} .sfy-picker-row');
       if (!row) return null;
@@ -380,13 +380,13 @@ async function main() {
           return (await app.vault.read(f)).includes('recipe: ${clickedRid}');
         })()`)
       : false;
-    check("picker de nœuds (recherche → ajout)", rowCount >= 1 && added ? "pass" : "fail",
-      `${rowCount} résultat(s), ${clickedRid} ${added ? "ajoutée au .md" : "absente"}`);
+    check("node picker (search → add)", rowCount >= 1 && added ? "pass" : "fail",
+      `${rowCount} result(s), ${clickedRid} ${added ? "added to the .md" : "missing"}`);
   } else {
-    check("picker de nœuds", "fail", "picker non affiché après + Nœud");
+    check("node picker", "fail", "picker not shown after + Node");
   }
 
-  // 4l) Menu contextuel : clic droit sur le fond → menu affiché.
+  // 4l) Context menu: right-click on the background → menu shown.
   await cdp.evalJS(`(() => {
     const pane = document.querySelector('${SCOPE} .react-flow__pane');
     if (!pane) return;
@@ -395,8 +395,8 @@ async function main() {
   })()`);
   await sleep(400);
   const ctxShown = await cdp.evalJS(`!!document.querySelector('${SCOPE} .sfy-ctx')`);
-  check("menu contextuel (clic droit fond)", ctxShown ? "pass" : "fail", ctxShown ? "menu affiché" : "menu absent");
-  await cdp.evalJS(`document.body.click()`); // referme
+  check("context menu (right-click background)", ctxShown ? "pass" : "fail", ctxShown ? "menu shown" : "menu missing");
+  await cdp.evalJS(`document.body.click()`); // close it
 
   // 5) Screenshot.
   const shotDir = path.join(__dirname);
@@ -405,10 +405,10 @@ async function main() {
     await cdp.screenshot(shot);
     console.log(`[e2e] screenshot → ${shot}`);
   } catch (e) {
-    console.log(`[e2e] screenshot échoué: ${e.message}`);
+    console.log(`[e2e] screenshot failed: ${e.message}`);
   }
 
-  // Rapport.
+  // Report.
   let failed = 0;
   console.log("");
   for (const c of checks) {

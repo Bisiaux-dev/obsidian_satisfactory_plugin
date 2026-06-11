@@ -1,9 +1,9 @@
 /**
- * Résout les débits EFFECTIFS (absolus, en /min) d'un nœud — source unique
- * utilisée par le rendu, le diagnostic et la connexion.
+ * Resolves a node's EFFECTIVE rates (absolute, per min) — single source of truth
+ * used by rendering, diagnostics and connection.
  *
- *  - nœud personnalisé (intrants/extrants surchargés) → ses débits tels quels ;
- *  - sinon → recette de la DB × nombre de machines.
+ *  - custom node (overridden intrants/extrants) → its rates as-is;
+ *  - otherwise → DB recipe × machine count.
  */
 import type { Db, Node, Port, Scene } from "./types";
 import { isCustomNode } from "./types";
@@ -36,10 +36,10 @@ export function nodePorts(node: Node, db: Db): NodePorts {
 }
 
 /**
- * Interface externe d'un calque (pour la vue repliée) : agrège les liens qui
- * TRAVERSENT la frontière du groupe. Entrées = liens venant de l'extérieur vers
- * un membre ; sorties = liens d'un membre vers l'extérieur. Les liens internes
- * (entre membres) sont ignorés.
+ * External interface of a layer (for the collapsed view): aggregates the links
+ * that CROSS the group boundary. Inputs = links coming from outside to a
+ * member; outputs = links from a member to the outside. Internal links
+ * (between members) are ignored.
  */
 export function layerAggregatePorts(scene: Scene, layerId: string): { intrants: Port[]; extrants: Port[] } {
   const members = new Set(scene.noeuds.filter((n) => n.calque === layerId).map((n) => n.id));

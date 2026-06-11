@@ -1,12 +1,12 @@
 <#
-  Lance Obsidian en mode Chrome DevTools Protocol pour les tests e2e CDP.
-  Le flag --remote-debugging-port ne prend effet qu'au demarrage : on tue donc
-  toute instance existante avant de relancer.
+  Launches Obsidian in Chrome DevTools Protocol mode for the CDP e2e tests.
+  The --remote-debugging-port flag only takes effect at startup: we therefore
+  kill any existing instance before relaunching.
 
-  -Vault force l'ouverture du vault cible en editant %APPDATA%\obsidian\obsidian.json
-  (parade au piege "Obsidian rouvre le dernier vault").
+  -Vault forces opening the target vault by editing %APPDATA%\obsidian\obsidian.json
+  (workaround for the "Obsidian reopens the last vault" trap).
 
-  Usage :
+  Usage:
     powershell -ExecutionPolicy Bypass -File _test/launch-obsidian.ps1 -Vault "C:\...\satisfactory-test-vault"
 #>
 param(
@@ -15,18 +15,18 @@ param(
 )
 
 $exe = "$env:LOCALAPPDATA\Programs\Obsidian\Obsidian.exe"
-if (-not (Test-Path $exe)) { Write-Error "Obsidian introuvable a $exe"; exit 1 }
+if (-not (Test-Path $exe)) { Write-Error "Obsidian not found at $exe"; exit 1 }
 $Vault = (Resolve-Path $Vault).Path
 
-# 1) Arreter Obsidian (le flag debug n'agit qu'au demarrage du process).
+# 1) Stop Obsidian (the debug flag only takes effect when the process starts).
 $running = Get-Process Obsidian -ErrorAction SilentlyContinue
 if ($running) {
-  Write-Host "Arret de l'instance Obsidian existante..."
+  Write-Host "Stopping the existing Obsidian instance..."
   $running | Stop-Process -Force
   Start-Sleep -Milliseconds 800
 }
 
-# 2) Forcer le vault cible dans obsidian.json (open:true uniquement sur lui).
+# 2) Force the target vault in obsidian.json (open:true on it only).
 $cfgPath = Join-Path $env:APPDATA "obsidian\obsidian.json"
 if (Test-Path $cfgPath) {
   $cfg = Get-Content $cfgPath -Raw | ConvertFrom-Json
@@ -45,16 +45,16 @@ if (Test-Path $cfgPath) {
     $cfg.vaults.$targetId.open = $true
   }
   ($cfg | ConvertTo-Json -Depth 10) | Set-Content $cfgPath -Encoding utf8
-  Write-Host "Vault cible force dans obsidian.json (id $targetId)."
+  Write-Host "Target vault forced in obsidian.json (id $targetId)."
 } else {
-  Write-Warning "obsidian.json introuvable : Obsidian ouvrira le dernier vault."
+  Write-Warning "obsidian.json not found: Obsidian will open the last vault."
 }
 
-# 3) Lancer en debug.
+# 3) Launch in debug mode.
 Start-Process $exe -ArgumentList "--remote-debugging-port=$Port"
-Write-Host "Obsidian lance en debug sur le port $Port."
+Write-Host "Obsidian launched in debug mode on port $Port."
 
-# 4) Mettre la fenetre au premier plan (Chromium met les rAF en pause si masquee).
+# 4) Bring the window to the foreground (Chromium pauses rAF when the window is hidden).
 Add-Type @"
 using System;
 using System.Runtime.InteropServices;
@@ -69,8 +69,8 @@ for ($i = 0; $i -lt 24; $i++) {
   if ($w) {
     [Win32Fg]::ShowWindow($w.MainWindowHandle, 9) | Out-Null
     [Win32Fg]::SetForegroundWindow($w.MainWindowHandle) | Out-Null
-    Write-Host "Fenetre Obsidian au premier plan."
+    Write-Host "Obsidian window brought to the foreground."
     break
   }
 }
-Write-Host "Endpoint : http://localhost:$Port/json/version"
+Write-Host "Endpoint: http://localhost:$Port/json/version"

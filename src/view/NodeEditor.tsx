@@ -16,24 +16,24 @@ interface Props {
 }
 
 /**
- * Panneau d'édition d'un nœud.
- *  - Recette + Machines : mode structuré (débits = recette × machines).
- *  - Débits personnalisés : machine + intrants/extrants éditables à la main
- *    (débits absolus /min) → surcharge la recette. « Appliquer » écrit le tout.
+ * Node editing panel.
+ *  - Recipe + Machines: structured mode (rates = recipe × machines).
+ *  - Custom rates: machine + hand-editable inputs/outputs
+ *    (absolute rates /min) → overrides the recipe. "Apply" writes it all.
  */
 export function NodeEditor({ node, db, layers, wholeMachines, onChange, onClose }: Props) {
   const custom = isCustomNode(node);
   const [pickingRecipe, setPickingRecipe] = useState(false);
 
-  // Brouillon local des débits (évite d'écrire le .md à chaque frappe).
+  // Local draft of the rates (avoids writing the .md on every keystroke).
   const eff = nodePorts(node, db);
   const [machine, setMachine] = useState(eff.machine);
   const [intrants, setIntrants] = useState<Port[]>(eff.intrants);
   const [extrants, setExtrants] = useState<Port[]>(eff.extrants);
 
-  // Brouillon : reflète les débits effectifs tant que le nœud suit une recette
-  // (recette/machines pilotent), et se fige dès qu'il est personnalisé (la frappe
-  // ne doit pas s'écraser). Signature → reset au changement de nœud ou de recette/machines.
+  // Draft: mirrors the effective rates while the node follows a recipe
+  // (recipe/machines drive it), and freezes once it is customized (typing
+  // must not be overwritten). Signature → reset when the node or recipe/machines change.
   const sig = custom ? `custom:${node.id}` : `recipe:${node.id}:${JSON.stringify(eff)}`;
   useEffect(() => {
     const p = nodePorts(node, db);
@@ -59,7 +59,7 @@ export function NodeEditor({ node, db, layers, wholeMachines, onChange, onClose 
     set(next);
   };
 
-  // Fonction (PAS un composant) → pas de remontage des inputs à chaque frappe.
+  // Function (NOT a component) → inputs are not remounted on every keystroke.
   const portList = (title: string, list: Port[], set: (p: Port[]) => void) => (
     <div className="sfy-ports">
       <div className="sfy-ports-head">
@@ -86,8 +86,8 @@ export function NodeEditor({ node, db, layers, wholeMachines, onChange, onClose 
     </div>
   );
 
-  // Nœud d'IMPORT (boîte noire d'une autre note) : recette et débits sont dérivés
-  // de la note importée → on n'édite que le multiplicateur et le calque.
+  // IMPORT node (black box of another note): recipe and rates are derived
+  // from the imported note → only the multiplier and the layer are editable.
   if (node.import) {
     return (
       <div className="sfy-editor nodrag nopan">

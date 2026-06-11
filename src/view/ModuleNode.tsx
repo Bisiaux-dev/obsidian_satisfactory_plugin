@@ -4,17 +4,17 @@ import { ChevronRight } from "lucide-react";
 import type { Port } from "../model/types";
 import { LayerName, useLayerActions } from "./inline";
 
-/** Données d'un calque REPLIÉ (vue module à ports agrégés). */
+/** Data for a COLLAPSED layer (module view with aggregated ports). */
 export interface ModuleNodeData extends Record<string, unknown> {
   layerId: string;
   nom: string;
   icone?: string;
   couleur?: string;
-  /** Items consommés depuis l'extérieur. */
+  /** Items consumed from the outside. */
   intrants: Port[];
-  /** Items fournis à l'extérieur. */
+  /** Items supplied to the outside. */
   extrants: Port[];
-  /** Nombre de nœuds repliés. */
+  /** Number of collapsed nodes. */
   count: number;
 }
 
@@ -24,7 +24,7 @@ export function ModuleNode({ data }: NodeProps) {
   const d = data as ModuleNodeData;
   const color = d.couleur ?? "#7c3aed";
   const layer = useLayerActions();
-  const name = (id: string) => id; // affichage par id (le nom complet vit côté items)
+  const name = (id: string) => id; // display by id (the full name lives on the items side)
 
   return (
     <div className="sfy-module" style={{ borderColor: color }}>

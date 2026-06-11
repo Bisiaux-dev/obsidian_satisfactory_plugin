@@ -1,0 +1,19 @@
+version: 2
+updates:
+  # npm dependencies (build/test). Watches for vulnerabilities and proposes
+  # regular bumps via PR — nothing is applied without manual review.
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      dev-dependencies:
+        dependency-type: "development"
+
+  # GitHub Actions versions (workflows are pinned to SHAs — Dependabot opens
+  # a PR with the new SHA when an action is updated).
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

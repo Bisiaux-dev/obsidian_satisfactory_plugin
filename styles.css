@@ -1,8 +1,8 @@
-/* Satisfactory Chains — styles du graphe (identité visuelle maquette v4) */
+/* Satisfactory Chains — graph styles (visual identity from mockup v4) */
 
 .sfy-graph {
-  /* Palette branchée sur le thème Obsidian (clair ET sombre) ; les fallbacks hex
-     conservent l'identité sombre d'origine hors d'Obsidian (harness de dev). */
+  /* Palette wired to the Obsidian theme (light AND dark); the hex fallbacks
+     keep the original dark identity outside Obsidian (dev harness). */
   --sfy-bg: var(--background-primary, #1e1e1e);
   --sfy-panel: var(--background-secondary, #262626);
   --sfy-card: var(--background-primary-alt, #2d2d2d);
@@ -29,13 +29,13 @@
   user-select: none;
 }
 
-/* React Flow surface transparente pour laisser passer notre fond */
+/* Transparent React Flow surface to let our background show through */
 .sfy-graph .react-flow__renderer,
 .sfy-graph .react-flow__pane {
   background: transparent;
 }
 
-/* ---- Nœud recette ---- */
+/* ---- Recipe node ---- */
 .sfy-node {
   background: var(--sfy-card);
   border: 1px solid var(--sfy-border);
@@ -57,7 +57,7 @@
   align-items: center;
   gap: 6px;
 }
-/* Icône image de l'item (vignette du jeu) dans le titre du nœud. */
+/* Item image icon (in-game thumbnail) in the node title. */
 .sfy-node .sfy-icon {
   width: 22px;
   height: 22px;
@@ -71,7 +71,7 @@
 }
 .sfy-node .sfy-issue { color: var(--text-error, #fca5a5); }
 
-/* ---- Édition inline (double-clic sur une valeur) ---- */
+/* ---- Inline editing (double-click on a value) ---- */
 .sfy-inline {
   cursor: text;
   border-bottom: 1px dotted var(--sfy-border);
@@ -92,7 +92,7 @@
   font-family: inherit;
 }
 
-/* ---- Bouton de suppression d'un nœud (au survol) ---- */
+/* ---- Node delete button (on hover) ---- */
 .sfy-del {
   position: absolute;
   top: -9px;
@@ -135,7 +135,7 @@
 .sfy-badge.warn { background: rgba(var(--color-orange-rgb, 245, 158, 11), 0.15); color: var(--sfy-warn); }
 .sfy-badge.bad  { background: rgba(var(--color-red-rgb, 239, 68, 68), 0.15); color: var(--sfy-bad); }
 
-/* ---- Nœud ressource brute ---- */
+/* ---- Raw resource node ---- */
 .sfy-node.sfy-raw {
   border-left-color: var(--sfy-raw);
   padding: 10px 12px;
@@ -143,16 +143,16 @@
   font-size: 13px;
 }
 
-/* ---- Nœud objectif ---- */
+/* ---- Goal node ---- */
 .sfy-node.sfy-goal {
   border: 1px dashed var(--sfy-accent);
   border-left: 5px solid var(--sfy-accent);
   background: rgba(var(--accent-rgb, 124, 58, 237), 0.12);
 }
 
-/* ---- Calque (groupe) ---- */
+/* ---- Layer (group) ---- */
 .sfy-graph .react-flow__node-calque {
-  /* boîte purement décorative : pas de style RF par défaut, clics traversants */
+  /* purely decorative box: no default RF styling, clicks pass through */
   padding: 0;
   border: none;
   background: transparent;
@@ -178,7 +178,7 @@
   white-space: nowrap;
 }
 
-/* ---- Handles React Flow discrets ---- */
+/* ---- Subtle React Flow handles ---- */
 .sfy-graph .react-flow__handle {
   width: 7px;
   height: 7px;
@@ -186,7 +186,7 @@
   border: 1px solid var(--sfy-muted);
 }
 
-/* ---- Label d'arête ---- */
+/* ---- Edge label ---- */
 .sfy-edge-label {
   font-size: 11px;
   background: var(--sfy-panel);
@@ -229,7 +229,7 @@
   color: var(--text-on-accent, #fff);
 }
 
-/* ---- Bout d'arête (sens du flux) ---- */
+/* ---- Edge cap (flow direction) ---- */
 .sfy-edge-cap {
   pointer-events: none;
   line-height: 1;
@@ -251,7 +251,7 @@
   font-size: 12px;
 }
 
-/* ---- Barre d'outils d'édition ---- */
+/* ---- Edit toolbar ---- */
 .sfy-toolbar {
   display: flex;
   align-items: center;
@@ -299,7 +299,7 @@
   font-size: 11px;
 }
 
-/* ---- Calque : bouton replier/déplier + nom éditable ---- */
+/* ---- Layer: collapse/expand button + editable name ---- */
 .sfy-group-head { display: flex; align-items: center; gap: 4px; pointer-events: auto; }
 .sfy-group-toggle {
   border: none;
@@ -324,7 +324,7 @@
 }
 .sfy-rename-btn:hover { opacity: 1; }
 
-/* ---- Nœud module (calque replié) ---- */
+/* ---- Module node (collapsed layer) ---- */
 .sfy-module {
   background: var(--sfy-card, #2d2d2d);
   border: 2px dashed;
@@ -352,10 +352,10 @@
   margin-top: 6px;
 }
 
-/* ---- Panneau d'édition d'un nœud ---- */
-/* Les panneaux de droite (éditeur / optimiseur) ne doivent JAMAIS déborder du
-   graphe (hauteur fixe + overflow:hidden) : plafond + défilement interne, sinon
-   les boutons du bas (Générer / Appliquer) deviennent inatteignables. */
+/* ---- Node edit panel ---- */
+/* The right-hand panels (editor / optimizer) must NEVER overflow the graph
+   (fixed height + overflow:hidden): cap + internal scrolling, otherwise the
+   bottom buttons (Generate / Apply) become unreachable. */
 .sfy-graph .react-flow__panel.top.right {
   max-height: calc(100% - 30px);
   display: flex;
@@ -428,7 +428,7 @@
   text-overflow: ellipsis;
 }
 
-/* ---- Panneau optimiseur ---- */
+/* ---- Optimizer panel ---- */
 .sfy-optimizer { width: 260px; }
 .sfy-check {
   display: flex;
@@ -446,10 +446,10 @@
   gap: 8px;
   border-top: 1px solid var(--sfy-border);
   padding-top: 8px;
-  /* pas de max-height ici : c'est le panneau entier qui défile (plafonné au graphe) */
+  /* no max-height here: the whole panel scrolls (capped to the graph height) */
 }
 
-/* ---- Édition des débits personnalisés ---- */
+/* ---- Custom flow-rate editing ---- */
 .sfy-editor-custom {
   border-top: 1px solid var(--sfy-border);
   padding-top: 8px;
@@ -504,8 +504,8 @@
   cursor: pointer;
   font-size: 12px;
   line-height: 1;
-  /* padding 0 + flex : sans ça le padding par défaut des boutons (Obsidian)
-     réduit la zone de contenu à 0 et l'icône lucide est écrasée (width 0). */
+  /* padding 0 + flex: without this, Obsidian's default button padding
+     shrinks the content area to 0 and the lucide icon gets squashed (width 0). */
   padding: 0;
   display: inline-flex;
   align-items: center;
@@ -525,7 +525,7 @@
 }
 .sfy-apply:hover { filter: brightness(1.1); }
 
-/* ---- Icônes lucide : alignement dans les boutons et lignes ---- */
+/* ---- Lucide icons: alignment within buttons and lines ---- */
 .sfy-btn, .sfy-btn2 {
   display: inline-flex;
   align-items: center;
@@ -551,7 +551,7 @@
 .sfy-cap-arrow svg { display: block; filter: drop-shadow(0 0 2px var(--sfy-panel)); }
 .sfy-cap-loop svg { display: block; }
 
-/* ---- Badge de statut : pastille colorée (remplace l'emoji) ---- */
+/* ---- Status badge: colored dot (replaces the emoji) ---- */
 .sfy-badge { display: inline-flex; align-items: center; gap: 4px; }
 .sfy-badge::before {
   content: "";
@@ -562,8 +562,8 @@
   flex: 0 0 auto;
 }
 
-/* ---- Picker de recettes (recherche + groupes) ---- */
-/* Le picker du bouton « + Nœud » s'ancre SOUS la barre d'outils, aligné à gauche. */
+/* ---- Recipe picker (search + groups) ---- */
+/* The "+ Node" button picker anchors BELOW the toolbar, left-aligned. */
 .sfy-toolbar { position: relative; }
 .sfy-picker-anchor { width: 0; height: 0; }
 .sfy-picker-anchor .sfy-picker {
@@ -675,7 +675,7 @@
   color: var(--sfy-muted, #8a8d91);
   text-align: center;
 }
-/* Picker embarqué dans le panneau d'édition (pleine largeur). */
+/* Picker embedded in the edit panel (full width). */
 .sfy-editor .sfy-picker { width: 100%; box-sizing: border-box; }
 .sfy-editor .sfy-picker-list { max-height: 220px; }
 .sfy-recipe-btn {
@@ -708,7 +708,7 @@
   color: var(--sfy-text, #dcddde);
 }
 
-/* ---- Menu contextuel (clic droit) ---- */
+/* ---- Context menu (right-click) ---- */
 .sfy-ctx {
   position: absolute;
   z-index: 40;
@@ -741,7 +741,7 @@
   margin: 4px 6px;
 }
 
-/* ---- Aide raccourcis ---- */
+/* ---- Shortcuts help ---- */
 .sfy-help {
   position: absolute;
   inset: 0;
@@ -779,7 +779,7 @@
   font-family: inherit;
 }
 
-/* ---- Message d'erreur de parsing ---- */
+/* ---- Parsing error message ---- */
 .sfy-error {
   padding: 12px 14px;
   border: 1px solid var(--sfy-bad);
@@ -791,7 +791,7 @@
   white-space: pre-wrap;
 }
 
-/* Conteneur du graphe (anciennement style inline statique). */
+/* Graph container (formerly a static inline style). */
 .sfy-graph-wrap {
   width: 100%;
   height: 100%;
