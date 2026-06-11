@@ -122,7 +122,7 @@ links:
 
 | Action | Gesture |
 |---|---|
-| Add a node | **+ Node** (or `N`) → searchable picker, grouped by machine, alternates apart |
+| Add a node | **+ Node** (or `N` → created at the mouse position) → searchable picker, grouped by machine, alternates apart |
 | Add a node AT a spot | **right-click the background** → *Add a node here…* |
 | Import another factory | **Import** in the toolbar (or right-click → *Import a factory here…*) → pick the note |
 | **Create a consumer** | drag an output handle **into empty space** → picker filtered to recipes consuming that product → node created + linked |
@@ -147,7 +147,7 @@ Active while the mouse is over the graph:
 
 | Key | Action |
 |---|---|
-| `N` | Add a node (picker) |
+| `N` | Add a node at the mouse position (picker) |
 | `O` | Toggle the optimizer |
 | `R` | Tidy (auto-layout) |
 | `F` | Fit view |

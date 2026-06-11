@@ -793,6 +793,24 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
   // Ignored when focus is in an input field (except Escape).
   const [showHelp, setShowHelp] = useState(false);
   const hovered = useRef(false);
+  // Last mouse position over the graph (client coords) — N creates the node there.
+  const mousePos = useRef<{ x: number; y: number } | null>(null);
+  // N opens the picker AT the mouse position (same behavior as right-click →
+  // "Add a node here…"); falls back to the toolbar placement when unavailable.
+  const openPickerAtMouse = useCallback(() => {
+    const pt = mousePos.current;
+    const fp = pt ? instRef.current?.screenToFlowPosition({ x: pt.x, y: pt.y }) : null;
+    const r = wrapperRef.current?.getBoundingClientRect();
+    if (!pt || !fp || !r) {
+      setPicker({ mode: "add" });
+      return;
+    }
+    setPicker({
+      mode: "ctx-add",
+      flowPos: [Math.round(fp.x), Math.round(fp.y)],
+      panelPos: [pt.x - r.left, pt.y - r.top],
+    });
+  }, []);
   const keymapRef = useRef<(e: KeyboardEvent) => void>(() => {});
   keymapRef.current = (e: KeyboardEvent) => {
     if (!hovered.current) return;
@@ -822,7 +840,7 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
       return;
     }
     // Plain keys (no modifier).
-    if (k === "n") { e.preventDefault(); setPicker({ mode: "add" }); }
+    if (k === "n") { e.preventDefault(); openPickerAtMouse(); }
     else if (k === "g") { e.preventDefault(); onGroup(); }
     else if (k === "f") { e.preventDefault(); onFit(); }
     else if (k === "o") { e.preventDefault(); setShowOptimizer((v) => !v); }
@@ -845,7 +863,8 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
       ref={wrapperRef}
       className="sfy-graph-wrap"
       onMouseEnter={() => { hovered.current = true; }}
-      onMouseLeave={() => { hovered.current = false; }}
+      onMouseLeave={() => { hovered.current = false; mousePos.current = null; }}
+      onMouseMove={(e) => { mousePos.current = { x: e.clientX, y: e.clientY }; }}
     >
     <ReactFlow
       nodes={allNodes}
@@ -1007,7 +1026,7 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
           <div className="sfy-help-cols">
             <div>
               <div className="sfy-io-title">Keyboard (mouse over the graph)</div>
-              <div className="sfy-help-row"><kbd>N</kbd> Add a node</div>
+              <div className="sfy-help-row"><kbd>N</kbd> Add a node at the mouse position</div>
               <div className="sfy-help-row"><kbd>O</kbd> Optimizer</div>
               <div className="sfy-help-row"><kbd>R</kbd> Tidy (auto-layout)</div>
               <div className="sfy-help-row"><kbd>F</kbd> Fit view</div>

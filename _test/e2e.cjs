@@ -398,6 +398,55 @@ async function main() {
   check("context menu (right-click background)", ctxShown ? "pass" : "fail", ctxShown ? "menu shown" : "menu missing");
   await cdp.evalJS(`document.body.click()`); // close it
 
+  // 4m) N shortcut: hover a pane point, press N, pick a recipe → node created
+  // AT the mouse position (flow coords of the hovered point, written to the .md).
+  const hoverPt = await cdp.evalJS(`(() => {
+    const pane = document.querySelector('${SCOPE} .react-flow__pane');
+    if (!pane) return null;
+    const r = pane.getBoundingClientRect();
+    return { x: Math.round(r.left + 480), y: Math.round(r.top + 300) };
+  })()`);
+  if (hoverPt) {
+    // Real mouse move (sets hovered + mousePos), then a real N key press.
+    await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: hoverPt.x, y: hoverPt.y });
+    await sleep(200);
+    await cdp.send("Input.dispatchKeyEvent", { type: "keyDown", key: "n", code: "KeyN", text: "n" });
+    await cdp.send("Input.dispatchKeyEvent", { type: "keyUp", key: "n", code: "KeyN" });
+    await sleep(400);
+    // Expected flow position of the hovered point (viewport transform math).
+    const expected = await cdp.evalJS(`(() => {
+      const host = document.querySelector('${SCOPE} .react-flow');
+      const vp = document.querySelector('${SCOPE} .react-flow__viewport');
+      if (!host || !vp) return null;
+      const r = host.getBoundingClientRect();
+      const m = new DOMMatrixReadOnly(getComputedStyle(vp).transform);
+      return { fx: (${hoverPt.x} - r.left - m.m41) / m.a, fy: (${hoverPt.y} - r.top - m.m42) / m.d };
+    })()`);
+    const floatShown = await cdp.evalJS(`!!document.querySelector('${SCOPE} .sfy-float .sfy-picker')`);
+    await cdp.evalJS(`(() => {
+      const input = document.querySelector('${SCOPE} .sfy-float .sfy-picker-search input');
+      if (!input) return;
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+      setter.call(input, 'iron ingot smelter');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    })()`);
+    await sleep(300);
+    await cdp.evalJS(`document.querySelector('${SCOPE} .sfy-float .sfy-picker-row')?.click()`);
+    await sleep(1500);
+    const placed = expected
+      ? await cdp.evalJS(`(async () => {
+          const f = app.vault.getAbstractFileByPath('${NOTE}');
+          const t = await app.vault.read(f);
+          const pts = [...t.matchAll(/pos: \\[(-?\\d+), (-?\\d+)\\]/g)].map((m) => [Number(m[1]), Number(m[2])]);
+          return pts.some(([x, y]) => Math.abs(x - ${expected.fx}) <= 3 && Math.abs(y - ${expected.fy}) <= 3);
+        })()`)
+      : false;
+    check("N adds a node at the mouse position", floatShown && placed ? "pass" : "fail",
+      `picker at cursor: ${floatShown}, node pos ≈ (${expected ? Math.round(expected.fx) + "," + Math.round(expected.fy) : "?"}) in .md: ${placed}`);
+  } else {
+    check("N adds a node at the mouse position", "fail", "pane not found");
+  }
+
   // 5) Screenshot.
   const shotDir = path.join(__dirname);
   const shot = path.join(shotDir, "last-run.png");

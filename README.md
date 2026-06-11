@@ -124,7 +124,7 @@ layers:
 
 | Action | Gesture |
 |---|---|
-| Add a node | **+ Node** (`N`) → searchable picker grouped by machine, alternates apart |
+| Add a node | **+ Node** (`N` → created at the mouse position) → searchable picker grouped by machine, alternates apart |
 | Add a node at a spot | right-click the background → *Add a node here…* |
 | Import another factory | **Import** (toolbar) or right-click → *Import a factory here…* |
 | Create a consumer | drag an output handle into empty space → filtered picker → node created + linked |
@@ -213,7 +213,7 @@ End-to-end tests inside the **real Obsidian** via the Chrome DevTools Protocol:
 ```bash
 npm run deploy:test                      # deploy the build into the test vault
 npm run launch:test                      # Obsidian in debug mode
-npm run test:e2e                         # 23 assertions (render, write-back, editing, picker, menu…)
+npm run test:e2e                         # 24 assertions (render, write-back, editing, picker, menu…)
 ```
 
 ---
