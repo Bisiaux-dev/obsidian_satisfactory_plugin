@@ -2,8 +2,8 @@
  * PURE mutations of the scene (F7 editing). Each function returns a new
  * Scene; the write-back takes care of rewriting it into the `.md`.
  */
-import type { Db, Layer, Link, Node, Scene } from "./types";
-import { SINK } from "./types";
+import type { Db, Layer, Link, LinkCap, Node, Scene } from "./types";
+import { isCustomNode, SINK } from "./types";
 import { nodePorts } from "./ports";
 
 const LAYER_COLORS = ["#3b82f6", "#f59e0b", "#22c55e", "#ef4444", "#a855f7", "#06b6d4", "#ec4899", "#84cc16"];
@@ -112,7 +112,7 @@ export function nextNodeId(scene: Scene): string {
 
 /** Node fields editable through the editor. */
 export type NodePatch = Partial<
-  Pick<Node, "recette" | "machines" | "calque" | "machine" | "intrants" | "extrants">
+  Pick<Node, "recette" | "machines" | "clock" | "sloops" | "calque" | "machine" | "intrants" | "extrants">
 >;
 
 /** Updates a node's editable fields. A key set to `undefined` removes it. */
@@ -140,6 +140,24 @@ export function addNode(scene: Scene, recetteId: string, pos: [number, number]):
   };
 }
 
+/** Adds a resource extractor (custom source node) at the given position. */
+export function addExtractor(
+  scene: Scene,
+  machine: string,
+  item: string,
+  debit: number,
+  pos: [number, number],
+): Scene {
+  const ids = new Set(scene.noeuds.map((x) => x.id));
+  let id = `src-${item}`;
+  let i = 2;
+  while (ids.has(id)) id = `src-${item}-${i++}`;
+  return {
+    ...scene,
+    noeuds: [...scene.noeuds, { id, recette: "", machines: 1, pos, machine, intrants: [], extrants: [{ item, debit }] }],
+  };
+}
+
 /** Removes nodes and every link touching them. */
 export function removeNodes(scene: Scene, ids: Set<string>): Scene {
   return {
@@ -152,12 +170,34 @@ export function removeNodes(scene: Scene, ids: Set<string>): Scene {
 /** Identity key of a link (used for deletion). */
 export const linkKey = (de: string, vers: string, produit: string) => `${de}|${vers}|${produit}`;
 
-/** Toggles a link's end style: normal arrow ➤ ↔ loop ♻ (reinjection). */
-export function toggleLinkLoop(scene: Scene, de: string, vers: string, produit: string): Scene {
+/** Cycle order of a link's end marker. */
+const CAP_CYCLE: Record<LinkCap, LinkCap> = { rien: "fleche", fleche: "boucle", boucle: "rien" };
+
+/** Sets a link's end marker (arrow / loop / none); keeps `boucle` in sync. */
+export function setLinkCap(scene: Scene, de: string, vers: string, produit: string, cap: LinkCap): Scene {
   return {
     ...scene,
     liens: scene.liens.map((l) =>
-      l.de === de && l.vers === vers && l.produit === produit ? { ...l, boucle: !l.boucle } : l,
+      l.de === de && l.vers === vers && l.produit === produit ? { ...l, cap, boucle: cap === "boucle" } : l,
+    ),
+  };
+}
+
+/** Cycles a link's end marker: arrow ➤ → loop ♻ → none. */
+export function cycleLinkCap(scene: Scene, de: string, vers: string, produit: string): Scene {
+  const cur = scene.liens.find((l) => l.de === de && l.vers === vers && l.produit === produit);
+  if (!cur) return scene;
+  const next = CAP_CYCLE[cur.cap ?? (cur.boucle ? "boucle" : "fleche")] ?? "fleche";
+  return setLinkCap(scene, de, vers, produit, next);
+}
+
+/** Sets a link's routed rate (drives the diagnostic, not just the label). */
+export function setLinkRate(scene: Scene, de: string, vers: string, produit: string, debit: number): Scene {
+  const d = Math.max(0, round(Number(debit) || 0));
+  return {
+    ...scene,
+    liens: scene.liens.map((l) =>
+      l.de === de && l.vers === vers && l.produit === produit ? { ...l, debit: d } : l,
     ),
   };
 }
@@ -194,14 +234,17 @@ export function connect(scene: Scene, db: Db, c: ConnectParams): ConnectResult {
   }
   const src = scene.noeuds.find((n) => n.id === c.source);
   if (!src) return { ok: false, reason: "Source node not found." };
-  const srcPorts = nodePorts(src, db);
+  const srcPorts = nodePorts(src, db, scene.liens);
   if (srcPorts.extrants.length === 0) {
     return { ok: false, reason: `${src.id} produces nothing to route.` };
   }
 
   const tgt = scene.noeuds.find((n) => n.id === c.target);
   const tgtName = c.target === SINK ? "the Sink" : (db.recipes[tgt?.recette ?? ""]?.nom ?? c.target);
-  const tgtConsumes = new Set(tgt ? nodePorts(tgt, db).intrants.map((i) => i.item) : []);
+  const tgtConsumes = new Set(tgt ? nodePorts(tgt, db, scene.liens).intrants.map((i) => i.item) : []);
+  // A generator also accepts any of its alternative fuels (not just the active one).
+  const tgtFuels = tgt && !isCustomNode(tgt) ? db.recipes[tgt.recette]?.fuels : undefined;
+  if (tgtFuels) for (const f of tgtFuels) tgtConsumes.add(f.item);
   const toSink = c.target === SINK;
   const itemName = (id: string) => db.items[id]?.nom ?? id;
 

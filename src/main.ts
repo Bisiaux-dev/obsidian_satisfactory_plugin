@@ -12,7 +12,9 @@ import guideMd from "../GUIDE.md";
 import { parseScene, SceneParseError } from "./schema";
 import { serializeScene } from "./serialize";
 import { GAME_DB } from "./model/game-db";
-import { renderItemsMd, renderRecipesMd } from "./db-md";
+import { renderItemsMd, renderRecipesMd, renderMachinesMd } from "./db-md";
+// Side-effect: merges the power-generator pseudo-recipes (`power-*`) into GAME_DB.
+import "./model/power";
 import { diagnose } from "./model/diagnostic";
 import { extractSatisfactoryBlock, sceneExports } from "./model/import";
 import type { Port, Scene } from "./model/types";
@@ -64,6 +66,7 @@ const DOC_FOLDER = "Satisfactory Chains";
 const GUIDE_PATH = normalizePath(`${DOC_FOLDER}/Guide.md`);
 const ITEMS_PATH = normalizePath(`${DOC_FOLDER}/items.md`);
 const RECIPES_PATH = normalizePath(`${DOC_FOLDER}/recipes.md`);
+const MACHINES_PATH = normalizePath(`${DOC_FOLDER}/machines.md`);
 
 interface SfySettings {
   /** Force whole machine counts when editing (disabled by default). */
@@ -160,8 +163,16 @@ export default class SatisfactoryPlugin extends Plugin {
     });
 
     // Deposit the docs (guide + DB) into the vault on the very first launch (once).
+    // On later launches, refresh the generated DB exports if the folder still exists
+    // (keeps items/recipes/machines.md in sync with the bundled DB).
     this.app.workspace.onLayoutReady(() => {
-      if (!this.settings.docsInstalled) void this.installDocs(false);
+      if (!this.settings.docsInstalled) {
+        void this.installDocs(false);
+      } else if (this.app.vault.getAbstractFileByPath(DOC_FOLDER)) {
+        void this.upsert(ITEMS_PATH, renderItemsMd(GAME_DB), true);
+        void this.upsert(RECIPES_PATH, renderRecipesMd(GAME_DB), true);
+        void this.upsert(MACHINES_PATH, renderMachinesMd(GAME_DB), true);
+      }
     });
 
     // Evict React roots of blocks whose note has been closed: the roots are kept
@@ -215,6 +226,7 @@ export default class SatisfactoryPlugin extends Plugin {
     const guide = await this.upsert(GUIDE_PATH, guideMd, false);
     await this.upsert(ITEMS_PATH, renderItemsMd(GAME_DB), true);
     await this.upsert(RECIPES_PATH, renderRecipesMd(GAME_DB), true);
+    await this.upsert(MACHINES_PATH, renderMachinesMd(GAME_DB), true);
 
     if (!this.settings.docsInstalled) {
       this.settings.docsInstalled = true;

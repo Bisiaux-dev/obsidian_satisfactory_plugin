@@ -8,8 +8,9 @@ The diagnostics are a **pure function** of `(scene + database)`. The plugin appl
 - **DB**: for each recipe, its `inputs` and `outputs` with a **nominal per-machine rate** (at 100%, per minute). The first output is the main product, the following ones are **by-products**.
 
 **Effective rates of a node** (absolute, /min):
-- normal node → `nominal recipe rate × machine count`;
-- custom node (`inputs` or `outputs` present on the node) → those rates **as-is** (the recipe is ignored).
+- normal node → `nominal recipe rate × machine count × clock/100`, and **outputs** are further multiplied by the Somersloop factor `1 + sloops/max` (max per machine: Smelter/Constructor 1, Assembler/Foundry/Refinery/Converter 2, Manufacturer/Blender/Particle Accelerator/Quantum Encoder 4);
+- custom node (`inputs` or `outputs` present on the node) → those rates **as-is**, scaled by `clock/100` (the recipe is ignored — an overclocked extractor mines more);
+- power generator (`production` set, slug `power-*`) → its accepted fuel (chosen among `fuels` by what the incoming links carry, default = first non-optional) + any `water`, all × `machine count × clock/100`; its waste is the fuel's `dechet`.
 
 ## Node status
 
@@ -26,13 +27,13 @@ The displayed status is **the worst** of the findings below (`bad` > `warn` > `o
 
 ### 🟡 `warn` — keep an eye on it
 
-- **Overproduction**: `produced rate` > `Σ outgoing link rates` for that item (partially routed surplus).
+- **Overproduction**: `produced rate` > **absorbed rate** for that item. Absorbed counts each outgoing link only up to what its target can really take (a saturated consumer, `Σ incoming > need`, absorbs only its `need`, pro-rated across its links — the rest backs up upstream). So a producer feeding an over-supplied consumer is flagged even when its own links are "full" (e.g. two 40-fuel refineries into a generator needing 50 → 15/min surplus each; the generator stays `ok`).
 - **Underproduction**: `Σ downstream demanded rates` > `produced rate` (consumers are starved).
 - **Under-supplied input**: `Σ incoming links` < `recipe need` → throttled / under-used machine.
 
 ### 🟢 `ok`
 
-Every output has a balanced outlet **and** every input is supplied.
+Every output has a balanced outlet **and is really absorbed** **and** every input is supplied.
 
 ## Rate comparisons
 

@@ -30,7 +30,10 @@ export function autoLayout(scene: Scene, db: Db): Scene {
   const size = new Map<string, { w: number; h: number }>();
   for (const n of scene.noeuds) {
     if (n.calque && collapsed.has(n.calque)) continue; // hidden member
-    const s = nodePorts(n, db).intrants.length === 0 ? SIZE_RAW : SIZE_RECIPE;
+    const s =
+      nodePorts(n, db, scene.liens).intrants.length === 0 && !db.recipes[n.recette]?.production
+        ? SIZE_RAW
+        : SIZE_RECIPE;
     size.set(n.id, s);
     g.setNode(n.id, { width: s.w, height: s.h });
   }

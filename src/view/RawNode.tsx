@@ -13,6 +13,8 @@ export interface RawNodeData extends Record<string, unknown> {
   nom: string;
   machine: string;
   debit: number;
+  /** Clock speed (%) — scales the displayed/effective output of an extractor. */
+  clock?: number;
   status: Status;
   issues: string[];
   /** Effective flow rates (to materialize an override on inline edit). */
@@ -24,12 +26,15 @@ export interface RawNodeData extends Record<string, unknown> {
 export function RawNode({ id, data }: NodeProps) {
   const d = data as RawNodeData;
   const editNode = useEditNode();
-  const setDebit = (v: string) =>
-    editNode?.(id, {
-      machine: d.machine,
-      intrants: [],
-      extrants: d.extrants.map((p, i) => (i === 0 ? { ...p, debit: Number(v) || 0 } : p)),
-    });
+  // Displayed rates are EFFECTIVE (× clock); store the base so nodePorts re-applies
+  // clock and the shown number stays what you typed (WYSIWYG).
+  const c = (d.clock ?? 100) / 100;
+  const r2 = (x: number) => Math.round(x * 1e4) / 1e4;
+  const baseExtrants = (override?: string) =>
+    d.extrants.map((p, i) =>
+      i === 0 && override !== undefined ? { ...p, debit: r2((Number(override) || 0) / c) } : { ...p, debit: r2(p.debit / c) },
+    );
+  const setDebit = (v: string) => editNode?.(id, { machine: d.machine, intrants: [], extrants: baseExtrants(v) });
 
   return (
     <div className={`sfy-node sfy-raw ${d.status}`}>
@@ -40,9 +45,15 @@ export function RawNode({ id, data }: NodeProps) {
       </div>
       <div className="sfy-line">
         {d.isImport ? <FileInput size={11} className="sfy-line-ico" /> : null}
-        <Inline value={d.machine} onCommit={(v) => editNode?.(id, { machine: v, intrants: [], extrants: d.extrants })} />
+        <Inline value={d.machine} onCommit={(v) => editNode?.(id, { machine: v, intrants: [], extrants: baseExtrants() })} />
         {" · "}
         <Inline value={d.debit} type="number" suffix="/min" onCommit={setDebit} />
+        {!d.isImport ? (
+          <span>
+            {" @ "}
+            <Inline value={d.clock ?? 100} type="number" suffix="%" onCommit={(v) => editNode?.(id, { clock: Math.min(250, Math.max(1, Number(v) || 100)) })} />
+          </span>
+        ) : null}
       </div>
       {d.issues.map((msg, i) => (
         <div key={i} className="sfy-line sfy-issue"><TriangleAlert size={11} className="sfy-line-ico" /> {msg}</div>

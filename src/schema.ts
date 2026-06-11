@@ -16,7 +16,7 @@
  * are still accepted on read. The serializer writes the English keys.
  */
 import { parseYaml } from "obsidian";
-import type { Layer, Link, Node, Port, Scene } from "./model/types";
+import type { Layer, Link, LinkCap, Node, Port, Scene } from "./model/types";
 
 export class SceneParseError extends Error {}
 
@@ -69,10 +69,13 @@ function parseNodes(value: unknown): Node[] {
     if (typeof imp !== "string" && typeof recipe !== "string") {
       throw new SceneParseError(`node "${n.id}": missing \`recipe\` (text).`);
     }
+    const clock = pick(n, "clock", "horloge");
     return {
       id: n.id,
       recette: typeof recipe === "string" ? recipe : "",
       machines: typeof n.machines === "number" ? n.machines : 1,
+      clock: typeof clock === "number" ? Math.min(250, Math.max(1, clock)) : 100,
+      sloops: typeof n.sloops === "number" ? Math.max(0, Math.floor(n.sloops)) : 0,
       pos: parsePos(n.pos),
       calque: asString(pick(n, "layer", "calque")),
       import: typeof imp === "string" ? imp : undefined,
@@ -120,14 +123,27 @@ function parseLinks(value: unknown): Link[] {
       throw new SceneParseError(`links[${i}] (${from}→${to}): missing \`product\`.`);
     }
     const rate = pick(l, "rate", "debit");
+    const cap = parseCap(pick(l, "cap", "bout"), pick(l, "loop", "boucle") === true);
     return {
       de: from,
       vers: to,
       produit: product,
       debit: typeof rate === "number" ? rate : 0,
-      boucle: pick(l, "loop", "boucle") === true,
+      boucle: cap === "boucle",
+      cap,
     };
   });
+}
+
+/** End-marker state of a link (back-compat with the boolean `loop`). */
+function parseCap(value: unknown, loop: boolean): LinkCap {
+  if (typeof value === "string") {
+    const v = value.toLowerCase();
+    if (v === "none" || v === "rien") return "rien";
+    if (v === "loop" || v === "boucle") return "boucle";
+    if (v === "arrow" || v === "fleche") return "fleche";
+  }
+  return loop ? "boucle" : "fleche";
 }
 
 function parseLayers(value: unknown): Layer[] {

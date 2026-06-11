@@ -1,6 +1,6 @@
 {
   "name": "satisfactory-chains",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Plan, visualize and verify Satisfactory production chains as interactive graphs stored in plain Markdown.",
   "main": "main.js",
   "scripts": {

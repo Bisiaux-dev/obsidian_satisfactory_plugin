@@ -7,12 +7,13 @@
  *
  * Rules (per node):
  *  - 🔴 bad  : an OUTPUT (product or by-product) with NO outgoing link → orphaned → blocks.
- *  - 🟡 warn : surplus (production > routed demand); shortfall (demand > production);
+ *  - 🟡 warn : surplus (production not absorbed downstream — incl. links pointing at an
+ *              already-saturated consumer); shortfall (demand > production);
  *              under-supplied input (incoming supply < need) → throttled machine.
- *  - 🟢 ok   : every output has a balanced outlet and every input is supplied.
+ *  - 🟢 ok   : every output is balanced AND really absorbed, every input is supplied.
  */
 import type { Db, Diagnostic, Issue, Scene, Status } from "./types";
-import { SINK } from "./types";
+import { isCustomNode, SINK } from "./types";
 import { nodePorts } from "./ports";
 
 /** Tolerance on rates (recipe rounding). */
@@ -32,7 +33,7 @@ export function diagnose(scene: Scene, db: Db): Diagnostic {
   };
 
   // Effective rates (recipe × machines, or custom overrides) per node.
-  const portsById = new Map(scene.noeuds.map((n) => [n.id, nodePorts(n, db)]));
+  const portsById = new Map(scene.noeuds.map((n) => [n.id, nodePorts(n, db, scene.liens)]));
 
   const isFluid = (item: string) => db.items[item]?.etat === "fluide";
 
@@ -43,11 +44,34 @@ export function diagnose(scene: Scene, db: Db): Diagnostic {
       ? !isFluid(produit)
       : (portsById.get(vers)?.intrants.some((i) => i.item === produit) ?? false);
 
+  // How much of an item a target can actually absorb (1 = fully). When a consumer
+  // is over-fed (incoming > need), only a fraction of each incoming link counts as
+  // truly consumed → the rest is surplus on the PRODUCER side (it backs up upstream).
+  const incomingByNode = new Map<string, Map<string, number>>();
+  for (const l of scene.liens) {
+    if (l.vers === SINK) continue;
+    let mm = incomingByNode.get(l.vers);
+    if (!mm) {
+      mm = new Map();
+      incomingByNode.set(l.vers, mm);
+    }
+    mm.set(l.produit, (mm.get(l.produit) ?? 0) + l.debit);
+  }
+  const absorption = (vers: string, item: string): number => {
+    if (vers === SINK) return 1;
+    const need = portsById.get(vers)?.intrants.find((i) => i.item === item)?.debit ?? 0;
+    if (need <= 0) return 0;
+    const supplied = incomingByNode.get(vers)?.get(item) ?? 0;
+    return supplied > need + EPS ? need / supplied : 1;
+  };
+
   for (const node of scene.noeuds) {
     status[node.id] = "ok";
     const ports = portsById.get(node.id)!;
 
-    if (ports.intrants.length === 0 && ports.extrants.length === 0) {
+    // A generator with no ports (e.g. geothermal) is valid; only a missing DB
+    // recipe on a non-custom, non-import node is "unknown".
+    if (!isCustomNode(node) && !node.import && !db.recipes[node.recette]) {
       issues.push({
         nodeId: node.id,
         severity: "bad",
@@ -76,10 +100,11 @@ export function diagnose(scene: Scene, db: Db): Diagnostic {
         bump(node.id, "bad");
       }
 
-      // Only valid links count as actual evacuation.
-      const routed = links
-        .filter((l) => isValidOutlet(l.vers, ex.item))
-        .reduce((sum, l) => sum + l.debit, 0);
+      // Only valid links count as actual evacuation; `absorbed` further discounts
+      // the part a saturated consumer cannot really take in (it backs up upstream).
+      const valid = links.filter((l) => isValidOutlet(l.vers, ex.item));
+      const routed = valid.reduce((sum, l) => sum + l.debit, 0);
+      const absorbed = valid.reduce((sum, l) => sum + l.debit * absorption(l.vers, ex.item), 0);
 
       if (routed <= EPS) {
         issues.push({
@@ -89,12 +114,12 @@ export function diagnose(scene: Scene, db: Db): Diagnostic {
           message: `${itemName} ${produced}/min orphaned`,
         });
         bump(node.id, "bad");
-      } else if (routed < produced - EPS) {
+      } else if (absorbed < produced - EPS) {
         issues.push({
           nodeId: node.id,
           severity: "warn",
           item: ex.item,
-          message: `Surplus ${itemName} ${round(produced - routed)}/min`,
+          message: `Surplus ${itemName} ${round(produced - absorbed)}/min (downstream can't absorb it all)`,
         });
         bump(node.id, "warn");
       } else if (routed > produced + EPS) {
@@ -121,7 +146,7 @@ export function diagnose(scene: Scene, db: Db): Diagnostic {
           nodeId: node.id,
           severity: "warn",
           item: inp.item,
-          message: `${itemName} under-supplied ${supplied}/${needed}`,
+          message: `${itemName} under-supplied ${round(supplied)}/${round(needed)}`,
         });
         bump(node.id, "warn");
       }

@@ -28,6 +28,18 @@ export interface Port {
   debit: number;
 }
 
+/**
+ * One accepted fuel of a power generator. `debit` = burn rate /min at 100% for
+ * the generator's nominal output. `dechet` = waste by-product produced when this
+ * fuel is burned (e.g. nuclear waste). `optionnel` = the generator runs without it.
+ */
+export interface GenFuel {
+  item: string;
+  debit: number;
+  dechet?: Port;
+  optionnel?: boolean;
+}
+
 /** A game recipe: inputs (intrants) → outputs (extrants), in a given machine. */
 export interface Recipe {
   id: string;
@@ -42,6 +54,14 @@ export interface Recipe {
    * A byproduct with no outlet is the #1 cause of a chain getting blocked.
    */
   extrants: Port[];
+  /**
+   * Power GENERATORS only (slugs `power-*`): nominal power OUTPUT in MW at 100%.
+   * When set, the recipe produces power (scales linearly with clock) instead of
+   * consuming it, and `fuels` lists the accepted fuels (one burned at a time).
+   */
+  production?: number;
+  /** Power generators: accepted fuels (the burned one is detected from the links). */
+  fuels?: GenFuel[];
 }
 
 /** The game database, indexed by id. */
@@ -56,6 +76,18 @@ export interface Node {
   recette: string;
   /** Number of machines (multiplies the recipe's input/output rates). Default: 1. */
   machines: number;
+  /**
+   * Clock speed in % (1–250, default 100). Item rates scale LINEARLY with it;
+   * machine power scales as (clock/100)^1.321928 (generators stay linear). On a
+   * custom/extractor node it scales both the absolute rates and the power.
+   */
+  clock?: number;
+  /**
+   * Somersloops inserted (production amplifier), 0..max (max depends on the
+   * machine). Output ×(1+sloops/max) (up to ×2), power ×(1+sloops/max)² (up to
+   * ×4). Inputs unchanged. Not allowed on extractors/generators.
+   */
+  sloops?: number;
   /** Position [x, y]; optional (auto-layout deferred). */
   pos?: [number, number];
   /** id of the layer this node belongs to. */
@@ -90,14 +122,19 @@ export function isCustomNode(n: Node): boolean {
  * A link = an explicit ROUTING decision for a product from one node to another
  * (or to the Sink). This is the object the diagnostic reads to spot orphans.
  */
+/** End-marker of a link: arrow (default), loop ♻ (reinjection), or none (hidden). */
+export type LinkCap = "fleche" | "boucle" | "rien";
+
 export interface Link {
   de: string;
   /** id of a destination node, or the literal string "SINK". */
   vers: string;
   produit: string;
   debit: number;
-  /** true if the product is fed back upstream (loop / reuse). */
+  /** true if the product is fed back upstream (loop / reuse). Kept in sync with `cap`. */
   boucle?: boolean;
+  /** End-marker state: arrow / loop / none (purely visual; `boucle` mirrors "boucle"). */
+  cap?: LinkCap;
 }
 
 /** Special link target: the AWESOME Sink (consumes any surplus). */

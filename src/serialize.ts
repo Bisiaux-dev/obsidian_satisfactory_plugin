@@ -13,6 +13,7 @@
  * trade-off of the write-back, see the design doc).
  */
 import type { Layer, Link, Node, Port, Scene } from "./model/types";
+import { isCustomNode } from "./model/types";
 
 /** Escapes a text value as a double-quoted YAML string. */
 function q(value: string): string {
@@ -38,6 +39,8 @@ function serializeNode(n: Node): string {
     return `  - { ${parts.join(", ")} }`;
   }
   const parts = [`id: ${slug(n.id)}`, `recipe: ${slug(n.recette)}`, `machines: ${n.machines}`];
+  if (typeof n.clock === "number" && n.clock !== 100) parts.push(`clock: ${n.clock}`);
+  if (typeof n.sloops === "number" && n.sloops > 0 && !isCustomNode(n)) parts.push(`sloops: ${n.sloops}`);
   if (n.pos) parts.push(`pos: [${Math.round(n.pos[0])}, ${Math.round(n.pos[1])}]`);
   if (n.calque) parts.push(`layer: ${slug(n.calque)}`);
   // Custom overrides (absolute rates) when present.
@@ -54,7 +57,9 @@ function serializeLink(l: Link): string {
     `product: ${slug(l.produit)}`,
     `rate: ${l.debit}`,
   ];
-  if (l.boucle) parts.push(`loop: true`);
+  const cap = l.cap ?? (l.boucle ? "boucle" : "fleche");
+  if (cap === "boucle") parts.push(`loop: true`);
+  else if (cap === "rien") parts.push(`cap: none`);
   return `  - { ${parts.join(", ")} }`;
 }
 

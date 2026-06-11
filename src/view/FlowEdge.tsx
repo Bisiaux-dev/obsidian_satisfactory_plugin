@@ -1,7 +1,8 @@
 import { BaseEdge, EdgeLabelRenderer, getBezierPath, Position, useReactFlow } from "@xyflow/react";
 import type { EdgeProps } from "@xyflow/react";
 import { Play, Repeat2, X } from "lucide-react";
-import { useToggleLink } from "./inline";
+import type { LinkCap } from "../model/types";
+import { Inline, useLinkActions } from "./inline";
 
 /** Data carried by an edge: the transported material and its flow. */
 export interface FlowEdgeData extends Record<string, unknown> {
@@ -11,14 +12,18 @@ export interface FlowEdgeData extends Record<string, unknown> {
   fluid: boolean;
   /** Label: product name. */
   label: string;
-  /** Sub-label: flow rate. */
+  /** Sub-label: flow rate (display string). */
   debit: string;
+  /** Numeric flow rate (editable). */
+  debitNum?: number;
   /** true if reinjection (loop) → ♻ cap instead of ➤. */
   boucle?: boolean;
+  /** End marker state: arrow / loop / none. */
+  cap?: LinkCap;
   /** Label position among parallel arrows (same source→target). */
   labelIndex?: number;
   labelCount?: number;
-  /** Link identity (to toggle its cap on double-click). */
+  /** Link identity (cap / rate / menu). */
   de?: string;
   vers?: string;
   produit?: string;
@@ -38,7 +43,13 @@ export function FlowEdge(props: EdgeProps) {
   const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data } = props;
   const d = data as FlowEdgeData;
   const { deleteElements } = useReactFlow();
-  const toggleLink = useToggleLink();
+  const linkActions = useLinkActions();
+  const cap: LinkCap = d.cap ?? (d.boucle ? "boucle" : "fleche");
+  const menu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (d.de && d.vers && d.produit) linkActions?.openMenu(d.de, d.vers, d.produit, e.clientX, e.clientY);
+  };
 
   const [path, labelX, labelY] = getBezierPath({
     sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition,
@@ -63,11 +74,8 @@ export function FlowEdge(props: EdgeProps) {
       <EdgeLabelRenderer>
         <div
           className="sfy-edge-label nodrag nopan"
-          title="Double-click: toggle loop (reinjection)"
-          onDoubleClick={(e) => {
-            e.stopPropagation();
-            if (d.de && d.vers && d.produit) toggleLink?.(d.de, d.vers, d.produit);
-          }}
+          title="Right-click: arrow / loop / none · Double-click the rate to edit it"
+          onContextMenu={menu}
           style={{
             position: "absolute",
             // vertically offsets the labels of parallel arrows so they
@@ -89,21 +97,36 @@ export function FlowEdge(props: EdgeProps) {
             <X size={10} />
           </button>
           {d.label}
-          <small>{d.debit}</small>
+          <small>
+            <Inline
+              value={d.debitNum ?? 0}
+              type="number"
+              onCommit={(v) => {
+                if (d.de && d.vers && d.produit) linkActions?.setRate(d.de, d.vers, d.produit, Number(v) || 0);
+              }}
+            />
+            /min
+          </small>
         </div>
 
-        {/* Cap = flow direction, always visible (➤) or reinjection (♻). */}
+        {/* Cap = flow direction: arrow (➤), reinjection (♻) or none. */}
         <div
-          className="sfy-edge-cap"
+          className="sfy-edge-cap nodrag nopan"
+          title="Right-click: arrow / loop / none"
+          onContextMenu={menu}
           style={{
             position: "absolute",
             transform: `translate(-50%, -50%) translate(${targetX + ox}px, ${targetY + oy}px)`,
+            pointerEvents: "all",
+            cursor: "pointer",
           }}
         >
-          {d.boucle ? (
+          {cap === "boucle" ? (
             <span className="sfy-cap-loop" style={{ borderColor: d.color, color: d.color }}>
               <Repeat2 size={12} />
             </span>
+          ) : cap === "rien" ? (
+            <span className="sfy-cap-none" style={{ borderColor: d.color, background: d.color }} />
           ) : (
             <span
               className="sfy-cap-arrow"

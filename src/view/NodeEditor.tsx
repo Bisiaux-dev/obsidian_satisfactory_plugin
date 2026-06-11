@@ -1,18 +1,67 @@
 import { useEffect, useState } from "react";
 import { ChevronDown, Plus, RotateCcw, X } from "lucide-react";
-import type { Db, Node, Port } from "../model/types";
+import type { Db, Link, Node, Port } from "../model/types";
 import { isCustomNode } from "../model/types";
 import { nodePorts } from "../model/ports";
+import { clockOf, maxSloops } from "../model/power";
 import type { NodePatch } from "../model/edit";
 import { RecipePicker } from "./RecipePicker";
 
 interface Props {
   node: Node;
   db: Db;
+  /** Scene links — needed to resolve a generator's active fuel for its ports. */
+  liens?: Link[];
   layers: { id: string; nom: string }[];
   wholeMachines: boolean;
   onChange: (patch: NodePatch) => void;
   onClose: () => void;
+}
+
+/**
+ * Number field with a LOCAL draft: commits on blur / Enter (Escape cancels), so
+ * the whole scene is not recomputed on every keystroke (unlike a controlled
+ * input bound straight to the scene).
+ */
+function DraftNumber({
+  value,
+  min,
+  max,
+  step,
+  onCommit,
+}: {
+  value: number;
+  min?: number;
+  max?: number;
+  step?: number;
+  onCommit: (n: number) => void;
+}) {
+  const [draft, setDraft] = useState(String(value));
+  useEffect(() => setDraft(String(value)), [value]);
+  const commit = () => {
+    let n = Number(draft);
+    if (!isFinite(n)) n = value;
+    if (typeof min === "number") n = Math.max(min, n);
+    if (typeof max === "number") n = Math.min(max, n);
+    setDraft(String(n));
+    if (n !== value) onCommit(n);
+  };
+  return (
+    <input
+      type="number"
+      min={min}
+      max={max}
+      step={step}
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+        else if (e.key === "Escape") { setDraft(String(value)); (e.target as HTMLInputElement).blur(); }
+      }}
+    />
+  );
 }
 
 /**
@@ -21,12 +70,12 @@ interface Props {
  *  - Custom rates: machine + hand-editable inputs/outputs
  *    (absolute rates /min) → overrides the recipe. "Apply" writes it all.
  */
-export function NodeEditor({ node, db, layers, wholeMachines, onChange, onClose }: Props) {
+export function NodeEditor({ node, db, liens, layers, wholeMachines, onChange, onClose }: Props) {
   const custom = isCustomNode(node);
   const [pickingRecipe, setPickingRecipe] = useState(false);
 
   // Local draft of the rates (avoids writing the .md on every keystroke).
-  const eff = nodePorts(node, db);
+  const eff = nodePorts(node, db, liens);
   const [machine, setMachine] = useState(eff.machine);
   const [intrants, setIntrants] = useState<Port[]>(eff.intrants);
   const [extrants, setExtrants] = useState<Port[]>(eff.extrants);
@@ -36,15 +85,21 @@ export function NodeEditor({ node, db, layers, wholeMachines, onChange, onClose 
   // must not be overwritten). Signature → reset when the node or recipe/machines change.
   const sig = custom ? `custom:${node.id}` : `recipe:${node.id}:${JSON.stringify(eff)}`;
   useEffect(() => {
-    const p = nodePorts(node, db);
+    const p = nodePorts(node, db, liens);
     setMachine(p.machine);
     setIntrants(p.intrants);
     setExtrants(p.extrants);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sig]);
 
-  const applyPorts = () => onChange({ machine, intrants, extrants });
+  // Displayed rates are EFFECTIVE (× clock); store the base on apply so nodePorts
+  // re-applies the clock factor (no double-scaling).
+  const c = clockOf(node) / 100;
+  const toBase = (list: Port[]) => list.map((p) => ({ ...p, debit: Math.round((p.debit / c) * 1e4) / 1e4 }));
+  const applyPorts = () => onChange({ machine, intrants: toBase(intrants), extrants: toBase(extrants) });
   const resetToRecipe = () => onChange({ machine: undefined, intrants: undefined, extrants: undefined });
+  const recForSloop = !custom ? db.recipes[node.recette] : undefined;
+  const maxS = recForSloop && !recForSloop.production ? maxSloops(recForSloop.machine) : 0;
 
   const editRow = (
     list: Port[],
@@ -101,15 +156,11 @@ export function NodeEditor({ node, db, layers, wholeMachines, onChange, onClose 
         </div>
         <label className="sfy-field">
           <span>Multiplier (× factories)</span>
-          <input
-            type="number"
+          <DraftNumber
             min={wholeMachines ? 1 : 0}
             step={wholeMachines ? 1 : 0.5}
             value={node.machines > 0 ? node.machines : 1}
-            onChange={(e) => {
-              const n = Number(e.target.value) || 0;
-              onChange({ machines: wholeMachines ? Math.max(1, Math.round(n)) : Math.max(0, n) });
-            }}
+            onCommit={(n) => onChange({ machines: wholeMachines ? Math.max(1, Math.round(n)) : Math.max(0, n) })}
           />
         </label>
         <label className="sfy-field">
@@ -157,15 +208,35 @@ export function NodeEditor({ node, db, layers, wholeMachines, onChange, onClose 
       {!custom ? (
         <label className="sfy-field">
           <span>Machines{wholeMachines ? " (whole)" : ""}</span>
-          <input
-            type="number"
+          <DraftNumber
             min={wholeMachines ? 1 : 0}
             step={wholeMachines ? 1 : 0.5}
             value={node.machines > 0 ? node.machines : 1}
-            onChange={(e) => {
-              const n = Number(e.target.value) || 0;
-              onChange({ machines: wholeMachines ? Math.max(1, Math.round(n)) : Math.max(0, n) });
-            }}
+            onCommit={(n) => onChange({ machines: wholeMachines ? Math.max(1, Math.round(n)) : Math.max(0, n) })}
+          />
+        </label>
+      ) : null}
+
+      <label className="sfy-field" title="1–250%. Recipe rates scale linearly. Machine power scales as clock^1.321928; generators stay linear. On an extractor/custom source node it scales both the output rate and the power.">
+        <span>Clock speed (%)</span>
+        <DraftNumber
+          min={1}
+          max={250}
+          step={5}
+          value={node.clock ?? 100}
+          onCommit={(n) => onChange({ clock: Math.min(250, Math.max(1, Math.round(n * 100) / 100)) })}
+        />
+      </label>
+
+      {maxS > 0 ? (
+        <label className="sfy-field" title="Somersloops inserted (production amplifier). Output ×(1+sloops/max) up to ×2; power ×(1+sloops/max)² up to ×4. Not for extractors/generators.">
+          <span>Somersloops (0–{maxS})</span>
+          <DraftNumber
+            min={0}
+            max={maxS}
+            step={1}
+            value={node.sloops ?? 0}
+            onCommit={(n) => onChange({ sloops: Math.max(0, Math.min(maxS, Math.round(n))) })}
           />
         </label>
       ) : null}

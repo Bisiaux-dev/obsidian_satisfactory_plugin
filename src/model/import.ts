@@ -32,7 +32,7 @@ export function sceneExports(scene: Scene, db: Db): Port[] {
   }
   const bal = new Map<string, number>();
   for (const n of scene.noeuds) {
-    const p = nodePorts(n, db);
+    const p = nodePorts(n, db, scene.liens);
     for (const e of p.extrants) bal.set(e.item, (bal.get(e.item) ?? 0) + e.debit);
     for (const i of p.intrants) bal.set(i.item, (bal.get(i.item) ?? 0) - i.debit);
   }

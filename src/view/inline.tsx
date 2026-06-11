@@ -1,14 +1,25 @@
 import { createContext, useContext, useRef, useState } from "react";
 import { Pencil } from "lucide-react";
 import type { NodePatch } from "../model/edit";
+import type { LinkCap } from "../model/types";
 
 /** Context providing the node mutation to node components (inline editing). */
 export const EditContext = createContext<((id: string, patch: NodePatch) => void) | null>(null);
 export const useEditNode = () => useContext(EditContext);
 
-/** Context to toggle a link's cap (➤ ↔ ♻) on double-click on the arrow. */
-export const LinkContext = createContext<((de: string, vers: string, produit: string) => void) | null>(null);
-export const useToggleLink = () => useContext(LinkContext);
+/** Actions on a link, provided to edges: end-marker (arrow/loop/none), rate, menu. */
+export interface LinkActions {
+  /** Cycle the end marker: arrow ➤ → loop ♻ → none. */
+  cycle: (de: string, vers: string, produit: string) => void;
+  /** Set the end marker directly. */
+  setCap: (de: string, vers: string, produit: string, cap: LinkCap) => void;
+  /** Set the routed rate (drives the diagnostic). */
+  setRate: (de: string, vers: string, produit: string, v: number) => void;
+  /** Open the link context menu at client coordinates (right-click). */
+  openMenu: (de: string, vers: string, produit: string, clientX: number, clientY: number) => void;
+}
+export const LinkContext = createContext<LinkActions | null>(null);
+export const useLinkActions = () => useContext(LinkContext);
 
 /** Plugin settings exposed to components (e.g. whole machines). */
 export const SettingsContext = createContext<{ wholeMachines: boolean }>({ wholeMachines: false });

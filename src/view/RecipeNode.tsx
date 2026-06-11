@@ -1,7 +1,8 @@
 import { Handle, Position } from "@xyflow/react";
 import type { NodeProps } from "@xyflow/react";
-import { Cog, Star, TriangleAlert } from "lucide-react";
+import { Cog, Star, TriangleAlert, Zap } from "lucide-react";
 import type { Port, Status } from "../model/types";
+import { MACHINE_ICONS } from "../model/machine-icons";
 import { DeleteButton } from "./DeleteButton";
 import { Inline, useEditNode } from "./inline";
 
@@ -15,8 +16,14 @@ export interface RecipeNodeData extends Record<string, unknown> {
   alternative?: boolean;
   machine: string;
   machines: number;
-  /** Flow rate of the main product (total = nominal × machines). */
+  /** Clock speed (%) and Somersloops (with the machine's max) of the node. */
+  clock?: number;
+  sloops?: number;
+  maxSloops?: number;
+  /** Flow rate of the main product (total = nominal × machines × clock × amp). */
   debit: number;
+  /** Power produced (MW) for a generator node (0 otherwise). */
+  prod?: number;
   status: Status;
   badge: string;
   /** Diagnostic messages to display in the node. */
@@ -38,12 +45,17 @@ export function RecipeNode({ id, data }: NodeProps) {
     const n = Number(v) || 0;
     return d.wholeMachines ? Math.max(1, Math.round(n)) : Math.max(0, n);
   };
-  // Editing a flow rate/the machine → materializes an override (absolute flow rates).
+  // Editing a rate freezes the node to a custom node; the displayed values are
+  // EFFECTIVE (post clock×amp), so divide by the clock factor to store the base
+  // (nodePorts re-applies clock → the effective number stays what you see).
+  const c = (d.clock ?? 100) / 100;
+  const r2 = (x: number) => Math.round(x * 1e4) / 1e4;
+  const base = (list: Port[]) => list.map((p) => ({ ...p, debit: r2(p.debit / c) }));
   const setOutDebit = (v: string) =>
     editNode?.(id, {
       machine: d.machine,
-      intrants: d.intrants,
-      extrants: d.extrants.map((p, i) => (i === 0 ? { ...p, debit: Number(v) || 0 } : p)),
+      intrants: base(d.intrants),
+      extrants: base(d.extrants).map((p, i) => (i === 0 ? { ...p, debit: r2((Number(v) || 0) / c) } : p)),
     });
 
   return (
@@ -59,14 +71,30 @@ export function RecipeNode({ id, data }: NodeProps) {
         {d.alternative ? <Star size={10} className="sfy-alt-star" /> : null}
       </div>
       <div className="sfy-line">
-        <Cog size={11} className="sfy-line-ico" />{" "}
-        <Inline value={d.machine} onCommit={(v) => editNode?.(id, { machine: v, intrants: d.intrants, extrants: d.extrants })} />
+        {MACHINE_ICONS[d.machine] ? (
+          <img className="sfy-machine-ico" src={MACHINE_ICONS[d.machine]} alt="" title={d.machine} />
+        ) : (
+          <Cog size={11} className="sfy-line-ico" />
+        )}{" "}
+        <Inline value={d.machine} onCommit={(v) => editNode?.(id, { machine: v, intrants: base(d.intrants), extrants: base(d.extrants) })} />
         {" ×"}
         <Inline value={d.machines} type="number" onCommit={(v) => editNode?.(id, { machines: normMachines(v) })} />
+        {" @ "}
+        <Inline value={d.clock ?? 100} type="number" suffix="%" onCommit={(v) => editNode?.(id, { clock: Math.min(250, Math.max(1, Number(v) || 100)) })} />
       </div>
-      <div className="sfy-line">
-        Output: <Inline value={d.debit} type="number" suffix="/min" onCommit={setOutDebit} />
-      </div>
+      {(d.maxSloops ?? 0) > 0 && (d.sloops ?? 0) > 0 ? (
+        <div className="sfy-line sfy-sloop">
+          <Star size={11} className="sfy-line-ico" /> {d.sloops}/{d.maxSloops} somersloop → output ×{Math.round((1 + (d.sloops ?? 0) / (d.maxSloops ?? 1)) * 100) / 100}
+        </div>
+      ) : null}
+      {d.extrants.length > 0 ? (
+        <div className="sfy-line">
+          Output: <Inline value={d.debit} type="number" suffix="/min" onCommit={setOutDebit} />
+        </div>
+      ) : null}
+      {d.prod ? (
+        <div className="sfy-line sfy-power"><Zap size={11} className="sfy-line-ico" /> {Math.round(d.prod * 100) / 100} MW</div>
+      ) : null}
       {d.issues.map((msg, i) => (
         <div key={i} className="sfy-line sfy-issue"><TriangleAlert size={11} className="sfy-line-ico" /> {msg}</div>
       ))}

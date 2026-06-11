@@ -797,3 +797,89 @@
   height: 100%;
   position: relative;
 }
+
+/* ---- Edge cap: "none" state (still right-clickable for the menu) ---- */
+.sfy-cap-none {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 2px solid;
+  opacity: 0.45;
+  background: var(--sfy-card);
+}
+.sfy-edge-cap:hover .sfy-cap-none { opacity: 1; }
+
+/* ---- Inline rate editing on edge labels ---- */
+.sfy-edge-label small .sfy-inline-input {
+  width: 52px;
+  font-size: 10px;
+}
+
+/* ---- Chain energy badge (total power, bottom-right) ---- */
+.sfy-graph .react-flow__panel.sfy-energy-panel {
+  pointer-events: all;
+  z-index: 6;
+}
+.sfy-energy {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  background: var(--sfy-panel);
+  border: 1px solid var(--sfy-border);
+  border-radius: 8px;
+  padding: 5px 9px;
+  color: var(--sfy-text, #dcddde);
+  cursor: help;
+}
+.sfy-energy.ok { border-color: var(--sfy-ok); }
+.sfy-energy.ok b { color: var(--sfy-ok); }
+.sfy-energy.bad { border-color: var(--sfy-bad); }
+.sfy-energy.bad b { color: var(--sfy-bad); }
+
+/* ---- Generator nodes: power output line ---- */
+.sfy-node .sfy-power { color: var(--sfy-ok); }
+
+/* ---- Somersloop / production amplifier line on a node ---- */
+.sfy-node .sfy-sloop { color: var(--sfy-warn, #f59e0b); }
+
+/* ---- Machine/building icon on the node's machine line (replaces the gear) ---- */
+.sfy-node .sfy-machine-ico {
+  width: 15px;
+  height: 15px;
+  vertical-align: -3px;
+  object-fit: contain;
+  image-rendering: auto;
+}
+
+/* ---- Extractor picker: node purity selector ---- */
+.sfy-purity {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--sfy-border);
+}
+.sfy-purity-label {
+  font-size: 11px;
+  color: var(--sfy-muted);
+  margin-right: 2px;
+}
+.sfy-purity-btn {
+  flex: 1;
+  font-size: 11px;
+  padding: 3px 6px;
+  border: 1px solid var(--sfy-border);
+  border-radius: 5px;
+  background: var(--sfy-card, #2d2d2d);
+  color: var(--sfy-text, #dcddde);
+  cursor: pointer;
+}
+.sfy-purity-btn:hover { background: var(--background-modifier-hover, #3a3a3a); }
+.sfy-purity-btn.active {
+  background: var(--interactive-accent, #5b6cff);
+  color: var(--text-on-accent, #fff);
+  border-color: var(--interactive-accent, #5b6cff);
+}

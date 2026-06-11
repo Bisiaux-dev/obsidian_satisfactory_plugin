@@ -22,24 +22,30 @@ import type {
 import type { Db, Diagnostic, Scene } from "../model/types";
 import { SINK } from "../model/types";
 import {
+  addExtractor,
   addNode,
   connect,
   copyNodes,
   createLayer,
+  cycleLinkCap,
   linkKey,
   nextNodeId,
   pasteInto,
   removeLinks,
   removeNodes,
+  setLinkCap,
+  setLinkRate,
   toggleLayerCollapsed,
-  toggleLinkLoop,
   updateLayer,
   updateNode,
 } from "../model/edit";
 import type { Clipboard, NodePatch } from "../model/edit";
-import type { Node as SfyNode } from "../model/types";
+import type { LinkCap, Node as SfyNode } from "../model/types";
 import { nodePorts, layerAggregatePorts } from "../model/ports";
 import { ICONS, ICON_COLORS } from "../model/game-icons";
+import { MACHINE_ICONS } from "../model/machine-icons";
+import { maxSloops, scenePower } from "../model/power";
+import type { Purity } from "../model/power";
 import { autoLayout } from "../model/layout";
 import { RecipeNode } from "./RecipeNode";
 import { RawNode } from "./RawNode";
@@ -48,10 +54,12 @@ import { ModuleNode } from "./ModuleNode";
 import { FlowEdge } from "./FlowEdge";
 import { NodeEditor } from "./NodeEditor";
 import { Optimizer } from "./Optimizer";
-import { NotePicker, RecipePicker } from "./RecipePicker";
+import { ExtractorPicker, NotePicker, RecipePicker } from "./RecipePicker";
 import { EditContext, LayerContext, LinkContext, SettingsContext } from "./inline";
+import type { LinkActions } from "./inline";
 import {
   Archive,
+  Ban,
   BoxSelect,
   CircleHelp,
   ClipboardPaste,
@@ -61,6 +69,8 @@ import {
   Keyboard,
   MousePointer2,
   Pencil,
+  Pickaxe,
+  Play,
   Plus,
   Redo2,
   Repeat2,
@@ -69,6 +79,7 @@ import {
   Undo2,
   Wand2,
   X,
+  Zap,
 } from "lucide-react";
 
 // Estimated node footprint (fallback when dimensions are not yet measured) + layer margins.
@@ -150,7 +161,7 @@ function buildBusinessNodes(scene: Scene, db: Db, diag: Diagnostic, wholeMachine
 
   scene.noeuds.forEach((node, i) => {
     const recipe = db.recipes[node.recette];
-    const ports = nodePorts(node, db);
+    const ports = nodePorts(node, db, scene.liens);
     const pos = node.pos ?? [40 + i * 240, 40 + (i % 3) * 170];
     maxX = Math.max(maxX, pos[0]);
     const issues = diag.issues.filter((x) => x.nodeId === node.id).map((x) => x.message);
@@ -164,8 +175,9 @@ function buildBusinessNodes(scene: Scene, db: Db, diag: Diagnostic, wholeMachine
       return;
     }
 
-    // Raw resource node: no inputs.
-    if (ports.intrants.length === 0) {
+    // Raw resource / extractor node: no inputs (generators are NOT raw — they
+    // are recipe nodes that display their building icon + MW output).
+    if (ports.intrants.length === 0 && !recipe?.production) {
       const out = ports.extrants[0];
       const item = db.items[out?.item];
       nodes.push({
@@ -178,6 +190,7 @@ function buildBusinessNodes(scene: Scene, db: Db, diag: Diagnostic, wholeMachine
           nom: item?.nom ?? out?.item ?? node.recette,
           machine: ports.machine,
           debit: out?.debit ?? 0,
+          clock: node.clock ?? 100,
           status,
           issues,
           extrants: ports.extrants,
@@ -189,19 +202,24 @@ function buildBusinessNodes(scene: Scene, db: Db, diag: Diagnostic, wholeMachine
 
     const principal = ports.extrants[0];
     const item = principal ? db.items[principal.item] : undefined;
+    const m = node.machines > 0 ? node.machines : 1;
     nodes.push({
       id: node.id,
       type: "recipe",
       position: { x: pos[0], y: pos[1] },
       data: {
         icone: item?.icone,
-        iconUrl: principal ? ICONS[principal.item] : undefined,
-        produit: item?.nom ?? principal?.item ?? node.recette,
+        iconUrl: recipe?.production ? MACHINE_ICONS[ports.machine] : principal ? ICONS[principal.item] : undefined,
+        produit: recipe?.production ? recipe.nom : (item?.nom ?? principal?.item ?? recipe?.nom ?? node.recette),
         recette: recipe?.nom ?? node.recette,
         alternative: recipe?.alternative,
         machine: ports.machine,
         machines: node.machines,
+        clock: node.clock ?? 100,
+        sloops: node.sloops ?? 0,
+        maxSloops: recipe && !recipe.production ? maxSloops(recipe.machine) : 0,
         debit: principal?.debit ?? 0,
+        prod: (recipe?.production ?? 0) * m * ((node.clock ?? 100) / 100),
         status,
         badge: status,
         issues,
@@ -328,7 +346,9 @@ function buildEdges(scene: Scene, db: Db): Edge[] {
         fluid: item?.etat === "fluide",
         label: item?.nom ?? link.produit,
         debit: `${link.debit}/min`,
+        debitNum: link.debit,
         boucle: rerouted ? false : link.boucle,
+        cap: rerouted ? "fleche" : (link.cap ?? (link.boucle ? "boucle" : "fleche")),
         de: link.de,
         vers: link.vers,
         produit: link.produit,
@@ -420,39 +440,56 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
   // Layers recomputed on every render from the live positions → the box follows the nodes.
   const groupNodes = useMemo(() => computeGroupNodes(scene, nodes), [scene, nodes]);
   const allNodes = useMemo(() => [...groupNodes, ...nodes], [groupNodes, nodes]);
+  // Total chain power (overclock + Somersloop applied; generators add production).
+  const power = useMemo(() => scenePower(scene, db), [scene, db]);
+  const powerTitle =
+    "Chain power. Consumption = base MW × machines × (1+sloops/max)² × (clock/100)^1.321928 " +
+    "(overclock + Somersloop amplification; variable-power machines at their average; extractors counted " +
+    "when the machine is recognized: Miner Mk.1/2/3, Water/Oil Extractor, Resource Well Pressurizer). " +
+    "Generators are linear and add production; with generators the badge shows production − consumption = net. " +
+    "Imported factories are not counted.";
 
-  // Write-back on DROP only (not on every pixel), per the spec.
+  // Write-back on DROP only (not on every pixel), per the spec. xyflow passes the
+  // FULL set of dragged nodes as the 3rd arg → a multi-selection drag persists
+  // every node's new position in a SINGLE commit (one undo step), not just the
+  // node under the cursor (the previous bug).
   const onNodeDragStop = useCallback(
-    (_e: MouseEvent | TouchEvent, node: RFNode) => {
+    (_e: MouseEvent | TouchEvent, node: RFNode, draggedNodes?: RFNode[]) => {
       if (!onSceneChange) return;
-
-      // Moving a collapsed layer (module node) → shifts all of its members.
-      if (node.id.startsWith("module-")) {
-        const layerId = node.id.slice("module-".length);
-        const members = scene.noeuds.filter((n) => n.calque === layerId && n.pos);
-        if (members.length === 0) return;
-        const minX = Math.min(...members.map((n) => n.pos![0]));
-        const minY = Math.min(...members.map((n) => n.pos![1]));
-        const dx = Math.round(node.position.x) - minX;
-        const dy = Math.round(node.position.y) - minY;
-        if (dx === 0 && dy === 0) return;
-        commit({
-          ...scene,
-          noeuds: scene.noeuds.map((n) =>
-            n.calque === layerId && n.pos
-              ? { ...n, pos: [n.pos[0] + dx, n.pos[1] + dy] as [number, number] }
-              : n,
-          ),
-        });
-        return;
+      const moved = draggedNodes && draggedNodes.length > 0 ? draggedNodes : [node];
+      let next = scene;
+      let changed = false;
+      for (const nd of moved) {
+        // Moving a collapsed layer (module node) → shifts all of its members.
+        if (nd.id.startsWith("module-")) {
+          const layerId = nd.id.slice("module-".length);
+          const members = next.noeuds.filter((n) => n.calque === layerId && n.pos);
+          if (members.length === 0) continue;
+          const minX = Math.min(...members.map((n) => n.pos![0]));
+          const minY = Math.min(...members.map((n) => n.pos![1]));
+          const dx = Math.round(nd.position.x) - minX;
+          const dy = Math.round(nd.position.y) - minY;
+          if (dx === 0 && dy === 0) continue;
+          next = {
+            ...next,
+            noeuds: next.noeuds.map((n) =>
+              n.calque === layerId && n.pos
+                ? { ...n, pos: [n.pos[0] + dx, n.pos[1] + dy] as [number, number] }
+                : n,
+            ),
+          };
+          changed = true;
+          continue;
+        }
+        const target = next.noeuds.find((n) => n.id === nd.id);
+        if (!target) continue; // synthetic node (layer, Sink) → not in the scene
+        const nx = Math.round(nd.position.x);
+        const ny = Math.round(nd.position.y);
+        if (target.pos && target.pos[0] === nx && target.pos[1] === ny) continue; // did not move
+        next = withNodePosition(next, nd.id, nx, ny);
+        changed = true;
       }
-
-      const target = scene.noeuds.find((n) => n.id === node.id);
-      if (!target) return; // synthetic node (layer, Sink) → not in the scene
-      const nx = Math.round(node.position.x);
-      const ny = Math.round(node.position.y);
-      if (target.pos && target.pos[0] === nx && target.pos[1] === ny) return; // did not move
-      commit(withNodePosition(scene, node.id, nx, ny));
+      if (changed) commit(next);
     },
     [scene, onSceneChange, commit],
   );
@@ -520,9 +557,14 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
         };
         const res = connect(withNode, db, { source: picker.sourceId, target: id });
         if (res.ok) {
-          commit(res.scene);
+          // Size the new node so it absorbs the routed flow (stays green).
+          const rec = db.recipes[recipeId];
+          const per = rec?.intrants.find((p) => p.item === res.produit)?.debit ?? rec?.fuels?.find((f) => f.item === res.produit)?.debit ?? 0;
+          let mc = per > 0 && res.debit > 0 ? res.debit / per : 1;
+          mc = wholeMachines ? Math.max(1, Math.round(mc)) : Math.max(0.01, Math.round(mc * 100) / 100);
+          commit(mc !== 1 ? updateNode(res.scene, id, { machines: mc }) : res.scene);
           const item = db.items[res.produit]?.nom ?? res.produit;
-          onNotice?.(`Node created and linked: ${item} ${res.debit}/min.`);
+          onNotice?.(`Node created and linked: ${item} ${res.debit}/min (×${mc} machine${mc > 1 ? "s" : ""}).`);
         } else {
           commit(withNode);
           onNotice?.(res.reason);
@@ -535,7 +577,7 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
           : [40, scene.noeuds.reduce((m, n) => Math.max(m, n.pos?.[1] ?? 0), 0) + 190];
       commit(addNode(scene, recipeId, pos));
     },
-    [scene, db, picker, onSceneChange, commit, onNotice],
+    [scene, db, picker, onSceneChange, commit, onNotice, wholeMachines],
   );
 
   // --- Importing another note (factory): vault note picker ---
@@ -567,6 +609,20 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
     [scene, importPicker, onSceneChange, commit, onNotice],
   );
 
+  // --- Extractor picker (resource source nodes): node-purity selector inside it ---
+  const [extPicker, setExtPicker] = useState<{ flowPos?: [number, number]; panelPos?: [number, number] } | null>(null);
+  const onPickExtractor = useCallback(
+    (machine: string, item: string, debit: number) => {
+      if (!onSceneChange || !extPicker) return;
+      const pos: [number, number] =
+        extPicker.flowPos ?? [40, scene.noeuds.reduce((m, n) => Math.max(m, n.pos?.[1] ?? 0), 0) + 190];
+      setExtPicker(null);
+      commit(addExtractor(scene, machine, item, debit, pos));
+      onNotice?.(`${machine} added: ${db.items[item]?.nom ?? item} ${debit}/min.`);
+    },
+    [scene, db, extPicker, onSceneChange, commit, onNotice],
+  );
+
   // Connection dropped in the void → picker filtered to consumers.
   const wrapperRef = useRef<HTMLDivElement>(null);
   const onConnectEnd = useCallback(
@@ -574,7 +630,7 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
       if (!onSceneChange || state.isValid || !state.fromNode) return;
       const src = scene.noeuds.find((n) => n.id === state.fromNode!.id);
       if (!src) return; // Sink / module / layer: no creation from those
-      const outputs = nodePorts(src, db).extrants.map((p) => p.item);
+      const outputs = nodePorts(src, db, scene.liens).extrants.map((p) => p.item);
       if (outputs.length === 0) return;
       const pt = "clientX" in event ? event : (event as TouchEvent).changedTouches[0];
       const fp = instRef.current?.screenToFlowPosition({ x: pt.clientX, y: pt.clientY });
@@ -679,9 +735,17 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
     (id: string, patch: NodePatch) => commit(updateNode(scene, id, patch)),
     [scene, commit],
   );
-  // Double-click on an arrow → toggles its end (➤ ↔ ♻ loop).
-  const toggleLink = useCallback(
-    (de: string, vers: string, produit: string) => commit(toggleLinkLoop(scene, de, vers, produit)),
+  // Link actions: end-marker (right-click cycles/sets it), editable rate, menu.
+  const linkActions = useMemo<LinkActions>(
+    () => ({
+      cycle: (de, vers, produit) => commit(cycleLinkCap(scene, de, vers, produit)),
+      setCap: (de, vers, produit, cap) => commit(setLinkCap(scene, de, vers, produit, cap)),
+      setRate: (de, vers, produit, v) => commit(setLinkRate(scene, de, vers, produit, v)),
+      openMenu: (de, vers, produit, clientX, clientY) => {
+        const r = wrapperRef.current?.getBoundingClientRect();
+        setCtx({ kind: "edge", x: clientX - (r?.left ?? 0), y: clientY - (r?.top ?? 0), de, vers, produit });
+      },
+    }),
     [scene, commit],
   );
   // Layer actions: collapse/expand + rename (name editing state held here,
@@ -811,6 +875,13 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
       panelPos: [pt.x - r.left, pt.y - r.top],
     });
   }, []);
+  const openExtractorAtMouse = useCallback(() => {
+    const pt = mousePos.current;
+    const fp = pt ? instRef.current?.screenToFlowPosition({ x: pt.x, y: pt.y }) : null;
+    const r = wrapperRef.current?.getBoundingClientRect();
+    if (!pt || !fp || !r) { setExtPicker({}); return; }
+    setExtPicker({ flowPos: [Math.round(fp.x), Math.round(fp.y)], panelPos: [pt.x - r.left, pt.y - r.top] });
+  }, []);
   const keymapRef = useRef<(e: KeyboardEvent) => void>(() => {});
   keymapRef.current = (e: KeyboardEvent) => {
     if (!hovered.current) return;
@@ -822,6 +893,7 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
       setCtx(null);
       setPicker(null);
       setImportPicker(null);
+      setExtPicker(null);
       setShowHelp(false);
       setEditorNodeId(null);
       setShowOptimizer(false);
@@ -841,6 +913,7 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
     }
     // Plain keys (no modifier).
     if (k === "n") { e.preventDefault(); openPickerAtMouse(); }
+    else if (k === "e") { e.preventDefault(); openExtractorAtMouse(); }
     else if (k === "g") { e.preventDefault(); onGroup(); }
     else if (k === "f") { e.preventDefault(); onFit(); }
     else if (k === "o") { e.preventDefault(); setShowOptimizer((v) => !v); }
@@ -857,7 +930,7 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
   return (
     <SettingsContext.Provider value={{ wholeMachines }}>
     <EditContext.Provider value={editById}>
-    <LinkContext.Provider value={toggleLink}>
+    <LinkContext.Provider value={linkActions}>
     <LayerContext.Provider value={layerActions}>
     <div
       ref={wrapperRef}
@@ -879,7 +952,7 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
       onMoveEnd={persistViewport}
       onSelectionChange={onSelectionChange}
       onNodeDoubleClick={onNodeDoubleClick}
-      onPaneClick={() => { setEditorNodeId(null); setPicker(null); setImportPicker(null); setCtx(null); }}
+      onPaneClick={() => { setEditorNodeId(null); setPicker(null); setImportPicker(null); setExtPicker(null); setCtx(null); }}
       onPaneContextMenu={onPaneContextMenu}
       onNodeContextMenu={onNodeContextMenu}
       onEdgeContextMenu={onEdgeContextMenu}
@@ -897,6 +970,7 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
       {onSceneChange ? (
         <Panel position="top-left" className="sfy-toolbar">
           <button onClick={(e) => { e.stopPropagation(); setPicker(picker?.mode === "add" ? null : { mode: "add" }); }} className="sfy-btn" data-action="add-node" title="Add a node (N)"><Plus size={13} /> Node</button>
+          <button onClick={(e) => { e.stopPropagation(); extPicker && !extPicker.panelPos ? setExtPicker(null) : setExtPicker({}); }} className="sfy-btn2" data-action="add-extractor" title="Add a resource extractor (E)"><Pickaxe size={13} /> Extractor</button>
           {listImportNotes ? (
             <button onClick={(e) => { e.stopPropagation(); importPicker ? setImportPicker(null) : openImportPicker(); }} className="sfy-btn2" data-action="import-note" title="Import production from another note (modular factory)"><FileInput size={13} /> Import</button>
           ) : null}
@@ -911,6 +985,11 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
           {picker?.mode === "add" ? (
             <div className="sfy-picker-anchor">
               <RecipePicker db={db} onPick={onPickRecipe} onClose={() => setPicker(null)} />
+            </div>
+          ) : null}
+          {extPicker && !extPicker.panelPos ? (
+            <div className="sfy-picker-anchor">
+              <ExtractorPicker db={db} onPick={onPickExtractor} onClose={() => setExtPicker(null)} />
             </div>
           ) : null}
           {importPicker && !importPicker.panelPos ? (
@@ -930,11 +1009,24 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
           <NodeEditor
             node={editorNode}
             db={db}
+            liens={scene.liens}
             layers={scene.calques.map((c) => ({ id: c.id, nom: c.nom }))}
             wholeMachines={wholeMachines}
             onChange={onEditNode}
             onClose={() => setEditorNodeId(null)}
           />
+        </Panel>
+      ) : null}
+      {scene.noeuds.length > 0 ? (
+        <Panel position="bottom-right" className="sfy-energy-panel">
+          <div className={`sfy-energy${power.prod > 0 ? (power.net >= 0 ? " ok" : " bad") : ""}`} title={powerTitle}>
+            <Zap size={12} />
+            {power.prod > 0 ? (
+              <span>{power.prod} − {power.conso} = <b>{power.net} MW</b></span>
+            ) : (
+              <span>{power.conso} MW</span>
+            )}
+          </div>
         </Panel>
       ) : null}
       <Background color="var(--sfy-border, #2c2c2c)" gap={26} size={1} />
@@ -951,6 +1043,19 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
         }}
       >
         <NotePicker notes={importNotes} onPick={onPickImportNote} onClose={() => setImportPicker(null)} />
+      </div>
+    ) : null}
+
+    {/* Floating extractor picker (right-click → Add an extractor here…). */}
+    {extPicker?.panelPos ? (
+      <div
+        className="sfy-float"
+        style={{
+          left: Math.min(extPicker.panelPos[0], (wrapperRef.current?.clientWidth ?? 600) - 290),
+          top: Math.min(extPicker.panelPos[1], (wrapperRef.current?.clientHeight ?? 400) - 330),
+        }}
+      >
+        <ExtractorPicker db={db} onPick={onPickExtractor} onClose={() => setExtPicker(null)} />
       </div>
     ) : null}
 
@@ -986,6 +1091,7 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
         {ctx.kind === "pane" ? (
           <>
             <button onClick={() => { setCtx(null); setPicker({ mode: "ctx-add", flowPos: ctx.flowPos, panelPos: [ctx.x, ctx.y] }); }}><Plus size={13} /> Add a node here…</button>
+            <button onClick={() => { setCtx(null); setExtPicker({ flowPos: ctx.flowPos, panelPos: [ctx.x, ctx.y] }); }}><Pickaxe size={13} /> Add an extractor here…</button>
             {listImportNotes ? (
               <button onClick={() => { setCtx(null); openImportPicker({ flowPos: ctx.flowPos, panelPos: [ctx.x, ctx.y] }); }}><FileInput size={13} /> Import a factory here…</button>
             ) : null}
@@ -1008,7 +1114,9 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
           </>
         ) : (
           <>
-            <button onClick={() => { setCtx(null); toggleLink(ctx.de, ctx.vers, ctx.produit); }}><Repeat2 size={13} /> Toggle loop</button>
+            <button onClick={() => { setCtx(null); linkActions.setCap(ctx.de, ctx.vers, ctx.produit, "fleche"); }}><Play size={13} /> Arrow</button>
+            <button onClick={() => { setCtx(null); linkActions.setCap(ctx.de, ctx.vers, ctx.produit, "boucle"); }}><Repeat2 size={13} /> Loop (reinjection)</button>
+            <button onClick={() => { setCtx(null); linkActions.setCap(ctx.de, ctx.vers, ctx.produit, "rien"); }}><Ban size={13} /> No marker</button>
             <hr />
             <button className="sfy-ctx-danger" onClick={() => { setCtx(null); commit(removeLinks(scene, new Set([linkKey(ctx.de, ctx.vers, ctx.produit)]))); }}><Trash2 size={13} /> Delete link</button>
           </>
@@ -1028,6 +1136,7 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
             <div>
               <div className="sfy-io-title">Keyboard (mouse over the graph)</div>
               <div className="sfy-help-row"><kbd>N</kbd> Add a node at the mouse position</div>
+              <div className="sfy-help-row"><kbd>E</kbd> Add a resource extractor</div>
               <div className="sfy-help-row"><kbd>O</kbd> Optimizer</div>
               <div className="sfy-help-row"><kbd>R</kbd> Tidy (auto-layout)</div>
               <div className="sfy-help-row"><kbd>F</kbd> Fit view</div>
@@ -1048,7 +1157,8 @@ function Graph({ scene, db, diagnostic, sourcePath, syncToken, onSceneChange, on
               <div className="sfy-help-row">Drag handle → empty: <b>create a consumer</b></div>
               <div className="sfy-help-row">Right-click (background / node / link) → menu</div>
               <div className="sfy-help-row">Shift+drag → multi-select</div>
-              <div className="sfy-help-row">Double-click a link label → loop</div>
+              <div className="sfy-help-row">Right-click a link → arrow / loop / none</div>
+              <div className="sfy-help-row">Double-click a link rate → edit the flow</div>
             </div>
           </div>
         </div>
