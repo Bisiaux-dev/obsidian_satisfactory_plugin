@@ -39,12 +39,60 @@ export const MACHINE_POWER: Record<string, number> = {
 };
 
 /** Per-recipe average MW override for variable-power buildings (dark matter etc.). */
+// EVERY recipe of a variable-power building, with its wiki AVERAGE MW (the wiki
+// gives a min–max range that ramps over the cycle; the average is the midpoint).
+// Particle Accelerator varies per recipe (Diamonds/Plutonium 250–750 → avg 500;
+// Dark Matter / Nuclear Pasta / Ficsonium 500–1500 → avg 1000). Converter is
+// uniform (100–400 → avg 250) and Quantum Encoder uniform (0–2000 → avg 1000),
+// listed explicitly so each craft carries its own verified value.
 export const RECIPE_POWER: Record<string, number> = {
+  // --- Particle Accelerator: 500 MW avg ---
+  "recipe-diamond-c": 500,
+  "recipe-alternate-diamond-turbo-c": 500,
+  "recipe-alternate-diamond-petroleum-c": 500,
+  "recipe-alternate-diamond-oilbased-c": 500,
+  "recipe-alternate-diamond-cloudy-c": 500,
+  "recipe-plutonium-c": 500,
+  "recipe-alternate-instantplutoniumcell-c": 500,
+  // --- Particle Accelerator: 1000 MW avg ---
   "recipe-darkmatter-c": 1000,
   "recipe-alternate-darkmatter-trap-c": 1000,
   "recipe-alternate-darkmatter-crystallization-c": 1000,
   "recipe-spaceelevatorpart-9-c": 1000,
   "recipe-ficsonium-c": 1000,
+  // --- Converter: 250 MW avg (uniform) ---
+  "recipe-alternate-ionizedfuel-dark-c": 250,
+  "recipe-darkenergy-c": 250,
+  "recipe-quantumenergy-c": 250,
+  "recipe-ficsiteingot-iron-c": 250,
+  "recipe-timecrystal-c": 250,
+  "recipe-ficsiteingot-al-c": 250,
+  "recipe-ficsiteingot-cat-c": 250,
+  "recipe-bauxite-caterium-c": 250,
+  "recipe-bauxite-copper-c": 250,
+  "recipe-caterium-copper-c": 250,
+  "recipe-caterium-quartz-c": 250,
+  "recipe-coal-iron-c": 250,
+  "recipe-coal-limestone-c": 250,
+  "recipe-copper-quartz-c": 250,
+  "recipe-copper-sulfur-c": 250,
+  "recipe-iron-limestone-c": 250,
+  "recipe-limestone-sulfur-c": 250,
+  "recipe-nitrogen-bauxite-c": 250,
+  "recipe-nitrogen-caterium-c": 250,
+  "recipe-quartz-bauxite-c": 250,
+  "recipe-quartz-coal-c": 250,
+  "recipe-sulfur-coal-c": 250,
+  "recipe-sulfur-iron-c": 250,
+  "recipe-uranium-bauxite-c": 250,
+  "recipe-alternate-diamond-pink-c": 250,
+  // --- Quantum Encoder: 1000 MW avg (uniform) ---
+  "recipe-superpositionoscillator-c": 1000,
+  "recipe-temporalprocessor-c": 1000,
+  "recipe-spaceelevatorpart-12-c": 1000,
+  "recipe-ficsoniumfuelrod-c": 1000,
+  "recipe-alienpowerfuel-c": 1000,
+  "recipe-syntheticpowershard-c": 1000,
 };
 
 /** Max Somersloops per machine type (production amplifier). 0 = not amplifiable. */
@@ -123,6 +171,12 @@ export const GENERATOR_RECIPES: Record<string, Recipe> = {
 
 // Merge generators into the game DB so they behave like any other recipe.
 for (const k of Object.keys(GENERATOR_RECIPES)) GAME_DB.recipes[k] = GENERATOR_RECIPES[k];
+
+// Dataset fix: "Pure Aluminum Ingot" is a Hard-Drive ALTERNATE (the standard
+// Aluminum Ingot is the Foundry recipe with silica), but the generated DB does
+// not flag it — so it was missing its ⭐ and sat in the Smelter section.
+const pureAl = GAME_DB.recipes["recipe-purealuminumingot-c"];
+if (pureAl) pureAl.alternative = true;
 
 /** Clamped clock speed (%) of a node (1–250, default 100). */
 export function clockOf(node: Node): number {
