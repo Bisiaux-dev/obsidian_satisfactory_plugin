@@ -23,7 +23,7 @@
   "devDependencies": {
     "@types/node": "^20.11.0",
     "@types/react": "^18.3.3",
-    "@types/react-dom": "^18.3.0",
+    "@types/react-dom": "^19.2.3",
     "builtin-modules": "^3.3.0",
     "esbuild": "^0.25.0",
     "obsidian": "latest",
@@ -37,6 +37,6 @@
     "javascript-lp-solver": "^1.0.3",
     "lucide-react": "^1.17.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^19.2.7"
   }
 }
