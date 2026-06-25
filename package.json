@@ -33,7 +33,7 @@
   },
   "dependencies": {
     "@dagrejs/dagre": "^3.0.0",
-    "@xyflow/react": "^12.11.0",
+    "@xyflow/react": "^12.11.1",
     "javascript-lp-solver": "^1.0.3",
     "lucide-react": "^1.17.0",
     "react": "^18.3.1",
